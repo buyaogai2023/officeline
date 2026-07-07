@@ -71,7 +71,7 @@ db.exec(`
 try { db.exec('ALTER TABLE files ADD COLUMN share_token TEXT'); } catch { /* 列已存在 */ }
 
 const PLANS = {
-  free: { name: '免费版', quota: 2 * 1024 ** 3, aiQuota: 20 },
+  free: { name: '免费版', quota: 5 * 1024 ** 3, aiQuota: 20 },
   pro: { name: '专业版', quota: 100 * 1024 ** 3, aiQuota: 1000 },
 };
 
@@ -122,13 +122,22 @@ function auth(req) {
 }
 
 const curMonth = () => new Date().toISOString().slice(0, 7);
-function aiUsed(uid) {
-  const r = db.prepare('SELECT count FROM ai_usage WHERE user_id=? AND month=?').get(uid, curMonth());
+// 免费用户月额度用尽后,每周仍可体验数次(采样付费价值,转化率远高于硬付费墙)
+const AI_SAMPLES_PER_WEEK = 3;
+function curWeek(d = new Date()) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  const w = Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400e3 + 1) / 7);
+  return `${t.getUTCFullYear()}-w${String(w).padStart(2, '0')}`; // 与 YYYY-MM 键不冲突
+}
+function aiCount(uid, period) {
+  const r = db.prepare('SELECT count FROM ai_usage WHERE user_id=? AND month=?').get(uid, period);
   return r ? r.count : 0;
 }
-function bumpAi(uid) {
+const aiUsed = (uid) => aiCount(uid, curMonth());
+function bumpAi(uid, period = curMonth()) {
   db.prepare(`INSERT INTO ai_usage (user_id, month, count) VALUES (?,?,1)
-    ON CONFLICT(user_id, month) DO UPDATE SET count=count+1`).run(uid, curMonth());
+    ON CONFLICT(user_id, month) DO UPDATE SET count=count+1`).run(uid, period);
 }
 
 // 配额统计包含回收站(彻底删除才释放空间)
@@ -199,6 +208,27 @@ function editorHtml(f, user, viewOnly = false) {
       customization: { autosave: true, forcesave: true, compactHeader: true },
     },
   };
+  // 访客页 CTA:分享链接是零成本获客入口,访客看完文档顺手注册
+  const guestCta = !viewOnly ? '' : `
+<div id="olCta">
+  <span id="olCtaX" title="关闭">✕</span>
+  <div class="olCtaTitle">该文档通过 <b>Officeline</b> 分享</div>
+  <div class="olCtaSub">开源云办公 · 免费 5GB 云空间 + AI 助手</div>
+  <a href="/?from=share" target="_blank" rel="noopener">免费创建我的文档</a>
+</div>
+<style>
+#olCta{position:fixed;right:18px;bottom:18px;z-index:99;width:250px;background:var(--ol-surface);color:var(--ol-fg);
+  border:1px solid var(--ol-border);border-radius:14px;padding:14px;box-shadow:var(--ol-shadow);
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:13px;line-height:1.6}
+#olCta .olCtaTitle{font-size:14px}
+#olCta .olCtaSub{color:var(--ol-sub);margin:2px 0 10px}
+#olCta a{display:block;text-align:center;text-decoration:none;border-radius:8px;padding:8px 0;
+  background:var(--ol-accent);color:#fff;transition:background .2s}
+#olCta a:hover{background:var(--ol-accent-h)}
+@media (prefers-color-scheme:dark){#olCta a{color:#0b1120}}
+#olCtaX{float:right;cursor:pointer;color:var(--ol-sub)}
+</style>
+<script>document.getElementById('olCtaX').onclick=()=>{document.getElementById('olCta').style.display='none'};<\/script>`;
   const aiBlock = viewOnly ? '' : `
 <button id="aiFab" title="AI 助手">✦ AI</button>
 <div id="aiPanel">
@@ -268,7 +298,7 @@ function editorHtml(f, user, viewOnly = false) {
 <script>
 if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));
 </script>
-${aiBlock}
+${aiBlock}${guestCta}
 </body></html>`;
 }
 
@@ -483,13 +513,24 @@ route('POST', /^\/api\/ai$/, async (req, res) => {
   if (!text || !text.trim()) return json(res, 400, { error: '内容为空' });
   const plan = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid).plan;
   const quota = (PLANS[plan] || PLANS.free).aiQuota;
+  // 月额度用尽:免费用户每周可再体验几次(附升级提示),专业版直接提示
+  let sample = false;
   if (aiUsed(u.uid) >= quota) {
-    return json(res, 402, { error: `本月 AI 额度(${quota} 次)已用完,升级专业版可获更多额度`, code: 'AI_QUOTA_EXCEEDED' });
+    sample = plan === 'free' && aiCount(u.uid, curWeek()) < AI_SAMPLES_PER_WEEK;
+    if (!sample) {
+      return json(res, 402, { error: `本月 AI 额度(${quota} 次)已用完,升级专业版每月 1000 次`, code: 'AI_QUOTA_EXCEEDED' });
+    }
   }
   try {
-    const result = await aiChat(action, text.slice(0, 20000));
-    bumpAi(u.uid);
-    json(res, 200, { result, aiUsed: aiUsed(u.uid), aiQuota: quota });
+    let result = await aiChat(action, text.slice(0, 20000));
+    if (sample) {
+      bumpAi(u.uid, curWeek());
+      const left = AI_SAMPLES_PER_WEEK - aiCount(u.uid, curWeek());
+      result += `\n\n———\n✦ 本月免费额度已用完,这是赠送的专业版体验(本周剩 ${left} 次)。升级专业版(¥19/月)每月 1000 次 AI。`;
+    } else {
+      bumpAi(u.uid);
+    }
+    json(res, 200, { result, sample, aiUsed: aiUsed(u.uid), aiQuota: quota });
   } catch (e) {
     json(res, 502, { error: String(e.message) });
   }

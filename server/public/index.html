@@ -269,7 +269,7 @@ dialog[open] { animation: rise .22s var(--ease); }
       <div class="err">密码至少需要 6 位</div>
     </div>
     <button class="btn btn-primary" id="authBtn" type="submit" style="width:100%;justify-content:center;margin-top:6px;">登 录</button>
-    <div class="auth-switch"><a href="#" id="authSwitch">没有账号?免费注册,送 2GB 云空间</a></div>
+    <div class="auth-switch"><a href="#" id="authSwitch">没有账号?免费注册,送 5GB 云空间</a></div>
   </form>
 </div>
 
@@ -454,7 +454,7 @@ $('authSwitch').onclick = (e) => {
   e.preventDefault(); isRegister = !isRegister;
   $('authTitle').textContent = isRegister ? '注册 Officeline' : '登录 Officeline';
   $('authBtn').textContent = isRegister ? '创建账号' : '登 录';
-  $('authSwitch').textContent = isRegister ? '已有账号?直接登录' : '没有账号?免费注册,送 2GB 云空间';
+  $('authSwitch').textContent = isRegister ? '已有账号?直接登录' : '没有账号?免费注册,送 5GB 云空间';
   $('password').autocomplete = isRegister ? 'new-password' : 'current-password';
 };
 
