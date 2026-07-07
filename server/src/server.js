@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { createStorage } = require('./storage');
 
 const PORT = Number(process.env.OFFICELINE_PORT || 9130);
 // 浏览器访问 Document Server 的地址
@@ -24,6 +25,8 @@ const FILES_DIR = path.join(DATA, 'files');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const TPL_DIR = path.join(ROOT, 'templates');
 fs.mkdirSync(FILES_DIR, { recursive: true });
+// 存储驱动:本地磁盘(默认)或 S3/R2,见 storage.js;本地时对象键 files/<id>/vN.ext 落在 data/ 下,与旧布局一致
+const storage = createStorage(process.env, DATA);
 
 // ---------- 密钥(首次启动生成,持久化) ----------
 const secretFile = path.join(DATA, 'secret.key');
@@ -56,9 +59,18 @@ db.exec(`
     created_at INTEGER NOT NULL,
     PRIMARY KEY (file_id, version)
   );
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    user_id INTEGER NOT NULL,
+    month TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, month)
+  );
 `);
 
-const PLANS = { free: { name: '免费版', quota: 2 * 1024 ** 3 }, pro: { name: '专业版', quota: 100 * 1024 ** 3 } };
+const PLANS = {
+  free: { name: '免费版', quota: 2 * 1024 ** 3, aiQuota: 20 },
+  pro: { name: '专业版', quota: 100 * 1024 ** 3, aiQuota: 1000 },
+};
 
 // ---------- 工具 ----------
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
@@ -106,28 +118,37 @@ function auth(req) {
   return verifyToken(token);
 }
 
+const curMonth = () => new Date().toISOString().slice(0, 7);
+function aiUsed(uid) {
+  const r = db.prepare('SELECT count FROM ai_usage WHERE user_id=? AND month=?').get(uid, curMonth());
+  return r ? r.count : 0;
+}
+function bumpAi(uid) {
+  db.prepare(`INSERT INTO ai_usage (user_id, month, count) VALUES (?,?,1)
+    ON CONFLICT(user_id, month) DO UPDATE SET count=count+1`).run(uid, curMonth());
+}
+
 function usedBytes(uid) {
   const r = db.prepare(`SELECT COALESCE(SUM(v.size),0) AS s FROM versions v JOIN files f ON f.id=v.file_id WHERE f.owner_id=? AND f.deleted=0`).get(uid);
   return Number(r.s);
 }
 
 const EXT_TYPE = { docx: 'word', xlsx: 'cell', pptx: 'slide' };
-const filePath = (id, v) => path.join(FILES_DIR, id, `v${v}${path.extname(db.prepare('SELECT name FROM files WHERE id=?').get(id).name)}`);
+const objKey = (id, v, name) => `files/${id}/v${v}${path.extname(name)}`;
 
-function saveVersion(fileId, buf) {
+async function saveVersion(fileId, buf) {
   const f = db.prepare('SELECT * FROM files WHERE id=?').get(fileId);
   const v = f.current_version + 1;
-  fs.writeFileSync(path.join(FILES_DIR, fileId, `v${v}${path.extname(f.name)}`), buf);
+  await storage.put(objKey(fileId, v, f.name), buf);
   db.prepare('INSERT INTO versions (file_id, version, size, created_at) VALUES (?,?,?,?)').run(fileId, v, buf.length, now());
   db.prepare('UPDATE files SET current_version=?, updated_at=? WHERE id=?').run(v, now(), fileId);
   return v;
 }
 
-function createFile(uid, name, buf) {
+async function createFile(uid, name, buf) {
   const id = crypto.randomBytes(8).toString('hex');
-  fs.mkdirSync(path.join(FILES_DIR, id), { recursive: true });
+  await storage.put(objKey(id, 1, name), buf);
   db.prepare('INSERT INTO files (id, owner_id, name, current_version, updated_at) VALUES (?,?,?,1,?)').run(id, uid, name, now());
-  fs.writeFileSync(path.join(FILES_DIR, id, `v1${path.extname(name)}`), buf);
   db.prepare('INSERT INTO versions (file_id, version, size, created_at) VALUES (?,1,?,?)').run(id, buf.length, now());
   return id;
 }
@@ -203,7 +224,11 @@ route('GET', /^\/api\/me$/, (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
   const row = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid);
   const plan = PLANS[row.plan] ? row.plan : 'free';
-  json(res, 200, { email: u.email, plan, planName: PLANS[plan].name, used: usedBytes(u.uid), quota: PLANS[plan].quota });
+  json(res, 200, {
+    email: u.email, plan, planName: PLANS[plan].name,
+    used: usedBytes(u.uid), quota: PLANS[plan].quota,
+    aiUsed: aiUsed(u.uid), aiQuota: PLANS[plan].aiQuota,
+  });
 });
 
 // 订阅升级(支付接入前的占位:真实上线接 Paddle/LemonSqueezy/微信支付)
@@ -227,7 +252,7 @@ route('POST', /^\/api\/files\/new$/, async (req, res) => {
   const { name, type } = JSON.parse(await readBody(req, 1e4));
   if (!['docx', 'xlsx', 'pptx'].includes(type)) return json(res, 400, { error: '类型不支持' });
   const buf = fs.readFileSync(path.join(TPL_DIR, `blank.${type}`));
-  const id = createFile(u.uid, `${(name || '未命名').replace(/[\/\\]/g, '')}.${type}`, buf);
+  const id = await createFile(u.uid, `${(name || '未命名').replace(/[\/\\]/g, '')}.${type}`, buf);
   json(res, 200, { id });
 });
 
@@ -241,24 +266,24 @@ route('POST', /^\/api\/files$/, async (req, res) => {
   if (usedBytes(u.uid) + buf.length > (PLANS[plan] || PLANS.free).quota) {
     return json(res, 402, { error: '云空间已满,请升级订阅', code: 'QUOTA_EXCEEDED' });
   }
-  json(res, 200, { id: createFile(u.uid, name, buf) });
+  json(res, 200, { id: await createFile(u.uid, name, buf) });
 });
 
 // Document Server / 客户端下载文件内容
-route('GET', /^\/api\/files\/([0-9a-f]+)\/raw$/, (req, res, m) => {
+route('GET', /^\/api\/files\/([0-9a-f]+)\/raw$/, async (req, res, m) => {
   const url = new URL(req.url, 'http://x');
   const f = db.prepare('SELECT * FROM files WHERE id=? AND deleted=0').get(m[1]);
   if (!f) return json(res, 404, { error: '文件不存在' });
   const ok = url.searchParams.get('t') === dlToken(f.id) || (auth(req) || {}).uid === f.owner_id;
   if (!ok) return json(res, 403, { error: '无权限' });
   const v = Number(url.searchParams.get('v')) || f.current_version;
-  const p = filePath(f.id, v);
-  if (!fs.existsSync(p)) return json(res, 404, { error: '版本不存在' });
+  const buf = await storage.get(objKey(f.id, v, f.name));
+  if (!buf) return json(res, 404, { error: '版本不存在' });
   res.writeHead(200, {
     'content-type': 'application/octet-stream',
     'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`,
   });
-  fs.createReadStream(p).pipe(res);
+  res.end(buf);
 });
 
 route('GET', /^\/api\/files\/([0-9a-f]+)\/versions$/, (req, res, m) => {
@@ -275,9 +300,9 @@ route('POST', /^\/api\/files\/([0-9a-f]+)\/restore$/, async (req, res, m) => {
   const { version } = JSON.parse(await readBody(req, 1e4));
   const f = db.prepare('SELECT * FROM files WHERE id=? AND owner_id=? AND deleted=0').get(m[1], u.uid);
   if (!f) return json(res, 404, { error: '文件不存在' });
-  const p = filePath(f.id, Number(version));
-  if (!fs.existsSync(p)) return json(res, 404, { error: '版本不存在' });
-  const v = saveVersion(f.id, fs.readFileSync(p));
+  const buf = await storage.get(objKey(f.id, Number(version), f.name));
+  if (!buf) return json(res, 404, { error: '版本不存在' });
+  const v = await saveVersion(f.id, buf);
   json(res, 200, { ok: true, version: v });
 });
 
@@ -297,7 +322,7 @@ route('POST', /^\/onlyoffice\/callback\/([0-9a-f]+)$/, async (req, res, m) => {
     const dlUrl = body.url.replace('http://localhost/', `${DS_PUBLIC}/`).replace(':80/', ':8080/');
     const r = await fetch(dlUrl);
     if (r.ok) {
-      const v = saveVersion(m[1], Buffer.from(await r.arrayBuffer()));
+      const v = await saveVersion(m[1], Buffer.from(await r.arrayBuffer()));
       console.log(`[save] file=${m[1]} -> v${v} (status=${body.status})`);
     } else {
       console.error(`[save] 下载失败 ${r.status} ${dlUrl}`);
@@ -320,8 +345,15 @@ route('POST', /^\/api\/ai$/, async (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
   const { action, text } = JSON.parse(await readBody(req, 1e6));
   if (!text || !text.trim()) return json(res, 400, { error: '内容为空' });
+  const plan = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid).plan;
+  const quota = (PLANS[plan] || PLANS.free).aiQuota;
+  if (aiUsed(u.uid) >= quota) {
+    return json(res, 402, { error: `本月 AI 额度(${quota} 次)已用完,升级专业版可获更多额度`, code: 'AI_QUOTA_EXCEEDED' });
+  }
   try {
-    json(res, 200, { result: await aiChat(action, text.slice(0, 20000)) });
+    const result = await aiChat(action, text.slice(0, 20000));
+    bumpAi(u.uid);
+    json(res, 200, { result, aiUsed: aiUsed(u.uid), aiQuota: quota });
   } catch (e) {
     json(res, 502, { error: String(e.message) });
   }

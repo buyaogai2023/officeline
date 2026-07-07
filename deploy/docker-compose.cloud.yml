@@ -1,0 +1,49 @@
+# Officeline 云端部署模板(例:甲骨文 OCI VPS)
+# 用法:
+#   1. 填好下方环境变量(JWT_SECRET 换成随机串;S3 用 Cloudflare R2 的凭据)
+#   2. docker compose -f docker-compose.cloud.yml up -d
+#   3. DS 就绪后打私网访问补丁(compose 网络内互访走私网 IP,DS 默认拦截):
+#      docker compose exec ds node -e 'const fs=require("fs");const p="/etc/onlyoffice/documentserver/local.json";const j=JSON.parse(fs.readFileSync(p));j.services.CoAuthoring["request-filtering-agent"]={allowPrivateIPAddress:true,allowMetaIPAddress:true};fs.writeFileSync(p,JSON.stringify(j,null,2))'
+#      docker compose exec ds supervisorctl restart ds:converter ds:docservice
+#   4. 域名 + HTTPS 用 Caddy/Nginx 反代 9130 与 8080(生产必须开 JWT 并同步签名逻辑,见 README TODO)
+services:
+  ds:
+    image: onlyoffice/documentserver:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - JWT_ENABLED=false   # TODO 生产改 true 并在 server 端签名
+    volumes:
+      - ds-data:/var/www/onlyoffice/Data
+      - ds-log:/var/log/onlyoffice
+
+  app:
+    image: node:26-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node src/server.js
+    ports:
+      - "9130:9130"
+    volumes:
+      - ../server:/app
+      - app-data:/app/data
+    environment:
+      - OFFICELINE_PORT=9130
+      # 浏览器访问 DS 的公网地址(域名部署后改成 https://ds.你的域名)
+      - OFFICELINE_DS_PUBLIC=http://服务器公网IP:8080
+      # DS 容器回访 app 用 compose 服务名
+      - OFFICELINE_SELF_FOR_DS=http://app:9130
+      # 对象存储(Cloudflare R2:免流量费,存储 $0.015/GB/月)
+      - OFFICELINE_STORAGE=s3
+      - OFFICELINE_S3_ENDPOINT=https://<accountid>.r2.cloudflarestorage.com
+      - OFFICELINE_S3_BUCKET=officeline
+      - OFFICELINE_S3_KEY=<R2_ACCESS_KEY>
+      - OFFICELINE_S3_SECRET=<R2_SECRET>
+      # AI(DeepSeek)
+      - OFFICELINE_AI_KEY=<DEEPSEEK_API_KEY>
+
+volumes:
+  ds-data:
+  ds-log:
+  app-data:

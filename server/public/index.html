@@ -91,7 +91,7 @@
     </div>
 
     <div class="card">
-      <h3>AI 助手 <span class="sub">(默认 DeepSeek,约 ¥0.01/次)</span></h3>
+      <h3>AI 助手 <span class="sub" id="aiQuotaText"></span></h3>
       <div class="row" style="margin-bottom:10px;">
         <select id="aiAction" style="width:auto;">
           <option value="polish">润色文字</option>
@@ -163,6 +163,7 @@ async function enter() {
   $('upgradeBtn').style.display = me.plan==='pro' ? 'none' : '';
   $('quotaText').textContent = fmtSize(me.used) + ' / ' + (me.quota/1073741824) + ' GB';
   $('quotaBar').style.width = Math.min(100, me.used/me.quota*100) + '%';
+  $('aiQuotaText').textContent = '本月已用 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
   await loadFiles();
 }
 

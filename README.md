@@ -36,9 +36,10 @@ cd desktop && npm start
 
 - 账号:注册 / 登录(scrypt + HMAC token)
 - 云存档:上传、新建(docx/xlsx/pptx)、每次保存自动生成新版本、历史版本查看与无损恢复、软删除
-- 订阅:免费版 2GB / 专业版 100GB 配额,超额返回 402(支付网关是 TODO,现为一键演示升级)
+- 订阅:免费版 2GB 云空间 + 每月 20 次 AI / 专业版 100GB + 1000 次,超额返回 402(支付网关是 TODO,现为一键演示升级)
 - 编辑:ONLYOFFICE 全功能编辑器,自动保存 + Ctrl+S 强制保存回写云端
-- AI:润色 / 总结 / 翻译 / 表格公式,DeepSeek(OpenAI 兼容)代理,未配 key 时为演示模式
+- AI:润色 / 总结 / 翻译 / 表格公式,按月计量,DeepSeek(OpenAI 兼容)代理,未配 key 时为演示模式
+- 存储驱动:local(默认)/ s3(Cloudflare R2 / MinIO / AWS,零依赖 SigV4 实现,已用 MinIO 全链路验证)
 
 ## 环境变量
 
@@ -49,6 +50,10 @@ cd desktop && npm start
 | `OFFICELINE_SELF_FOR_DS` | http://host.docker.internal:9130 | DS 回访后端的地址 |
 | `OFFICELINE_AI_KEY` | (空=演示模式) | DeepSeek API Key |
 | `OFFICELINE_AI_BASE` / `OFFICELINE_AI_MODEL` | api.deepseek.com / deepseek-chat | 可换任意 OpenAI 兼容服务 |
+| `OFFICELINE_STORAGE` | local | 设为 `s3` 走对象存储 |
+| `OFFICELINE_S3_ENDPOINT/BUCKET/KEY/SECRET/REGION` | — | s3 模式必填(REGION 默认 auto,R2 用 auto) |
+
+云端部署模板见 `deploy/docker-compose.cloud.yml`。
 
 ## 上线前 TODO(按优先级)
 
