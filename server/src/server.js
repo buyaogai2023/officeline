@@ -241,16 +241,26 @@ function editorHtml(f, user, viewOnly = false) {
 <p><code>colima start && docker start officeline-ds</code></p>
 <p>首次安装或容器不存在时运行 <code>deploy/setup-ds.sh</code>,然后刷新本页。</p></div>
 <style>
+:root{--ol-accent:#2563eb;--ol-accent-h:#1d4ed8;--ol-surface:#fff;--ol-fg:#0f172a;--ol-sub:#64748b;
+  --ol-border:#e2e8f0;--ol-muted:#f1f5f9;--ol-shadow:0 12px 32px rgba(15,23,42,.18)}
+@media (prefers-color-scheme:dark){:root{--ol-accent:#60a5fa;--ol-accent-h:#93c5fd;--ol-surface:#101827;
+  --ol-fg:#e6ebf4;--ol-sub:#8b98ad;--ol-border:#223047;--ol-muted:#17202f;--ol-shadow:0 12px 32px rgba(0,0,0,.6)}}
 #aiFab{position:fixed;right:18px;bottom:18px;z-index:99;border:0;border-radius:22px;padding:10px 18px;
-  background:#2563eb;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
-#aiPanel{display:none;position:fixed;right:18px;bottom:70px;z-index:99;width:340px;background:#fff;
-  border:1px solid #e5e7eb;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.15);
-  font-family:-apple-system,"PingFang SC",sans-serif;font-size:14px}
+  background:var(--ol-accent);color:#fff;font-size:14px;cursor:pointer;
+  box-shadow:0 4px 14px rgba(37,99,235,.35);transition:background .2s,transform .12s}
+#aiFab:hover{background:var(--ol-accent-h)}#aiFab:active{transform:scale(.96)}
+#aiPanel{display:none;position:fixed;right:18px;bottom:70px;z-index:99;width:340px;background:var(--ol-surface);
+  color:var(--ol-fg);border:1px solid var(--ol-border);border-radius:14px;padding:14px;box-shadow:var(--ol-shadow);
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
 #aiPanel .aiRow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-#aiPanel textarea,#aiPanel select{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+#aiPanel textarea,#aiPanel select{width:100%;border:1px solid var(--ol-border);border-radius:8px;padding:8px;
+  font-family:inherit;font-size:13px;background:var(--ol-surface);color:var(--ol-fg)}
+#aiPanel textarea:focus,#aiPanel select:focus{outline:none;border-color:var(--ol-accent)}
 #aiPanel select{width:auto;flex:1}
-#aiPanel button{border:0;border-radius:8px;padding:7px 14px;background:#2563eb;color:#fff;cursor:pointer}
-#aiRes{white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:10px;margin-top:8px;max-height:220px;overflow:auto;font-size:13px}
+#aiPanel button{border:0;border-radius:8px;padding:7px 14px;background:var(--ol-accent);color:#fff;cursor:pointer;transition:background .2s}
+#aiPanel button:hover{background:var(--ol-accent-h)}
+#aiRes{white-space:pre-wrap;background:var(--ol-muted);border-radius:8px;padding:10px;margin-top:8px;max-height:220px;overflow:auto;font-size:13px}
+@media (prefers-color-scheme:dark){#aiFab,#aiPanel button{color:#0b1120}}
 </style>
 <script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"
   onerror="document.getElementById('dsErr').style.display='block'"></script>
@@ -299,7 +309,8 @@ route('POST', /^\/api\/billing\/upgrade$/, (req, res) => {
 
 route('GET', /^\/api\/files$/, (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
-  const rows = db.prepare(`SELECT f.id, f.name, f.current_version, f.updated_at, v.size
+  const rows = db.prepare(`SELECT f.id, f.name, f.current_version, f.updated_at, v.size,
+    CASE WHEN f.share_token IS NULL THEN 0 ELSE 1 END AS shared
     FROM files f JOIN versions v ON v.file_id=f.id AND v.version=f.current_version
     WHERE f.owner_id=? AND f.deleted=0 ORDER BY f.updated_at DESC`).all(u.uid);
   json(res, 200, { files: rows });
@@ -363,6 +374,18 @@ route('POST', /^\/api\/files\/([0-9a-f]+)\/restore$/, async (req, res, m) => {
   if (!buf) return json(res, 404, { error: '版本不存在' });
   const v = await saveVersion(f.id, buf);
   json(res, 200, { ok: true, version: v });
+});
+
+// 重命名(扩展名不可变,存储键依赖它)
+route('POST', /^\/api\/files\/([0-9a-f]+)\/rename$/, async (req, res, m) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  const f = db.prepare('SELECT * FROM files WHERE id=? AND owner_id=? AND deleted=0').get(m[1], u.uid);
+  if (!f) return json(res, 404, { error: '文件不存在' });
+  const { name } = JSON.parse(await readBody(req, 1e4));
+  const base = String(name || '').replace(/[\/\\]/g, '').trim();
+  if (!base) return json(res, 400, { error: '名称不能为空' });
+  db.prepare('UPDATE files SET name=?, updated_at=? WHERE id=?').run(base + path.extname(f.name), now(), f.id);
+  json(res, 200, { ok: true });
 });
 
 // 只读分享链接:开启(幂等)/关闭

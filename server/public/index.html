@@ -187,6 +187,12 @@ textarea { width: 100%; resize: vertical; line-height: 1.6; }
 #aiOut { white-space: pre-wrap; background: var(--muted); border-radius: var(--r-md); padding: 13px 15px; font-size: 14px; margin-top: 12px; min-height: 20px; display: none; }
 #aiOut.show { display: block; animation: rise .25s var(--ease); }
 
+/* ===== 搜索框 ===== */
+.search-box { display: flex; align-items: center; gap: 8px; color: var(--fg-sub); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 12px; min-height: 38px; background: var(--muted); transition: border-color var(--dur), background var(--dur); }
+.search-box:focus-within { border-color: var(--accent); background: var(--surface); }
+.search-box input { border: 0; background: none; outline: none; color: var(--fg); font: inherit; font-size: 14px; width: 170px; }
+@media (max-width: 640px) { .search-box input { width: 110px; } }
+
 /* ===== 对话框 ===== */
 dialog {
   border: 1px solid var(--border); border-radius: var(--r-lg); padding: 0;
@@ -298,6 +304,11 @@ dialog[open] { animation: rise .22s var(--ease); }
         上传
       </button>
       <input id="pick" type="file" accept=".docx,.xlsx,.pptx" class="hidden">
+      <div class="spacer"></div>
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search" type="search" placeholder="搜索文件…" aria-label="搜索文件">
+      </div>
     </div>
     <div class="table-wrap">
       <table>
@@ -336,6 +347,39 @@ dialog[open] { animation: rise .22s var(--ease); }
 <dialog id="verDlg">
   <div class="dlg-head"><h3>版本历史</h3><button class="btn btn-quiet" onclick="verDlg.close()" aria-label="关闭">✕</button></div>
   <div class="dlg-body" id="verRows"></div>
+</dialog>
+
+<!-- 新建 / 重命名 -->
+<dialog id="nameDlg">
+  <form method="dialog" id="nameForm">
+    <div class="dlg-head"><h3 id="nameTitle">新建文档</h3><button type="button" class="btn btn-quiet" onclick="nameDlg.close()" aria-label="关闭">✕</button></div>
+    <div class="dlg-body">
+      <div class="field" style="margin:0;">
+        <label for="nameInput">文件名</label>
+        <div class="control"><input id="nameInput" type="text" autocomplete="off" maxlength="80"></div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-ghost" onclick="nameDlg.close()">取消</button>
+      <button class="btn btn-primary" id="nameOk">创建</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 分享管理 -->
+<dialog id="shareDlg">
+  <div class="dlg-head"><h3>分享「<span id="shareName" style="font-weight:600;"></span>」</h3><button class="btn btn-quiet" onclick="shareDlg.close()" aria-label="关闭">✕</button></div>
+  <div class="dlg-body">
+    <p style="margin:0 0 12px;font-size:13.5px;color:var(--fg-sub);">任何拿到链接的人都可以<b style="color:var(--fg);">只读查看</b>此文件,无需登录。</p>
+    <div class="search-box" style="background:var(--muted);">
+      <input id="shareUrl" type="text" readonly style="width:100%;" aria-label="分享链接">
+      <button class="btn btn-quiet" id="shareCopy" style="white-space:nowrap;">复制</button>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn btn-ghost" id="shareOff" style="color:var(--danger);border-color:var(--danger);">关闭分享</button>
+    <button class="btn btn-primary" onclick="shareDlg.close()">完成</button>
+  </div>
 </dialog>
 
 <!-- 删除确认 -->
@@ -458,6 +502,7 @@ const ICONS = {
   pptx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>',
 };
 const ABTN = {
+  rename: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>',
   open: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
   share: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>',
   history: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polyline points="12 7 12 12 15 15"/></svg>',
@@ -469,26 +514,37 @@ function skeleton() {
     '<tr class="skel"><td><div style="width:55%"></div></td><td class="col-hide"><div style="width:70%"></div></td><td class="col-hide"><div style="width:80%"></div></td><td><div style="width:40%;margin-left:auto;"></div></td></tr>').join('');
 }
 
+let allFiles = [];
 async function loadFiles() {
   skeleton();
   const { files } = await api('/api/files');
-  $('empty').classList.toggle('hidden', files.length > 0);
+  allFiles = files;
+  renderFiles();
+}
+function renderFiles() {
+  const q = ($('search').value || '').trim().toLowerCase();
+  const files = q ? allFiles.filter(f => f.name.toLowerCase().includes(q)) : allFiles;
+  $('empty').classList.toggle('hidden', allFiles.length > 0);
   $('fileRows').innerHTML = files.map(f => {
     const ext = f.name.split('.').pop().toLowerCase();
     return `<tr>
     <td><span class="file-cell" onclick="openFile('${f.id}')" tabindex="0" role="link"
           onkeydown="if(event.key==='Enter')openFile('${f.id}')">
       <span class="file-icon ${ext}">${ICONS[ext] || ICONS.docx}</span>
-      <span class="file-name">${esc(f.name)}</span></span></td>
+      <span class="file-name">${esc(f.name)}</span>
+      ${f.shared ? '<span class="pill" title="已开启只读分享">已分享</span>' : ''}</span></td>
     <td class="num col-hide">${fmtSize(f.size)}</td>
     <td class="num col-hide">${fmtTime(f.updated_at)} · v${f.current_version}</td>
     <td><div class="row-actions">
       <button class="btn btn-quiet" onclick="openFile('${f.id}')" aria-label="打开" title="打开">${ABTN.open}</button>
+      <button class="btn btn-quiet" onclick="askRename('${f.id}')" aria-label="重命名" title="重命名">${ABTN.rename}</button>
       <button class="btn btn-quiet" onclick="shareFile('${f.id}')" aria-label="分享" title="分享">${ABTN.share}</button>
       <button class="btn btn-quiet" onclick="showVersions('${f.id}')" aria-label="版本历史" title="版本历史">${ABTN.history}</button>
       <button class="btn btn-quiet danger" onclick="askDelete('${f.id}', '${esc(f.name).replace(/'/g,'')}')" aria-label="删除" title="删除">${ABTN.del}</button>
     </div></td></tr>`; }).join('');
+  if (q && !files.length) $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:28px;">没有匹配「' + esc(q) + '」的文件</td></tr>';
 }
+$('search').oninput = renderFiles;
 
 function openFile(id) { window.open('/editor/' + id + '?token=' + encodeURIComponent(token), '_blank'); }
 
@@ -498,14 +554,38 @@ newBtn.onclick = (e) => { e.stopPropagation(); const open = newMenu.classList.to
 document.addEventListener('click', () => { newMenu.classList.remove('open'); newBtn.setAttribute('aria-expanded', 'false'); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') newMenu.classList.remove('open'); });
 
-async function newDoc(type) {
-  newMenu.classList.remove('open');
-  const name = prompt('文件名:', '未命名'); if (name === null) return;
-  try {
-    const { id } = await api('/api/files/new', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, type }) });
-    await enter(); openFile(id); toast('已创建');
-  } catch (e) { toast(e.message, false); }
+/* 命名对话框:新建 + 重命名 共用 */
+const TYPE_LABEL = { docx: '文档', xlsx: '表格', pptx: '演示' };
+let nameMode = null; // { kind:'new', type } | { kind:'rename', id }
+function openNameDlg(title, initial, okText, mode) {
+  nameMode = mode;
+  $('nameTitle').textContent = title;
+  $('nameOk').textContent = okText;
+  const inp = $('nameInput'); inp.value = initial;
+  nameDlg.showModal(); inp.select();
 }
+function newDoc(type) {
+  newMenu.classList.remove('open');
+  openNameDlg('新建' + TYPE_LABEL[type], '未命名' + TYPE_LABEL[type], '创建', { kind: 'new', type });
+}
+function askRename(id) {
+  const f = allFiles.find(x => x.id === id); if (!f) return;
+  openNameDlg('重命名', f.name.replace(/\.[^.]+$/, ''), '保存', { kind: 'rename', id });
+}
+$('nameForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const name = $('nameInput').value.trim();
+  if (!name) { $('nameInput').focus(); return; }
+  try {
+    if (nameMode.kind === 'new') {
+      const { id } = await api('/api/files/new', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, type: nameMode.type }) });
+      nameDlg.close(); await enter(); openFile(id); toast('已创建');
+    } else {
+      await api('/api/files/' + nameMode.id + '/rename', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name }) });
+      nameDlg.close(); await enter(); toast('已重命名');
+    }
+  } catch (err) { toast(err.message, false); }
+};
 
 pick.onchange = async () => {
   const f = pick.files[0]; if (!f) return;
@@ -516,15 +596,28 @@ pick.onchange = async () => {
   pick.value = '';
 };
 
-/* 分享 */
+/* 分享管理 */
+let shareFileId = null;
 async function shareFile(id) {
+  shareFileId = id;
+  const f = allFiles.find(x => x.id === id);
   try {
     const { url } = await api('/api/files/' + id + '/share', { method:'POST' });
-    const full = location.origin + url;
-    try { await navigator.clipboard.writeText(full); toast('只读分享链接已复制'); }
-    catch { prompt('分享链接(手动复制):', full); }
+    $('shareName').textContent = f ? f.name : '';
+    $('shareUrl').value = location.origin + url;
+    shareDlg.showModal();
   } catch (e) { toast(e.message, false); }
 }
+$('shareCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('shareUrl').value); toast('链接已复制'); }
+  catch { $('shareUrl').select(); document.execCommand('copy'); toast('链接已复制'); }
+};
+$('shareOff').onclick = async () => {
+  try {
+    await api('/api/files/' + shareFileId + '/share', { method:'DELETE' });
+    shareDlg.close(); await loadFiles(); toast('已关闭分享,旧链接立即失效');
+  } catch (e) { toast(e.message, false); }
+};
 
 /* 删除 */
 function askDelete(id, name) { pendingDel = id; $('delName').textContent = name; delDlg.showModal(); }
