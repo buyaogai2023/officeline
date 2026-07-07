@@ -34,6 +34,8 @@ services:
       - OFFICELINE_DS_PUBLIC=${DS_PUBLIC}
       # DS 容器回访 app 用 compose 服务名
       - OFFICELINE_SELF_FOR_DS=http://app:9130
+      # 后端取 DS 文件走容器内网(不要走公网回环)
+      - OFFICELINE_DS_INTERNAL=http://ds
       # 与 ds 的 JWT_SECRET 一致:编辑器配置签名 + 回调验签
       - OFFICELINE_DS_JWT=${DS_JWT_SECRET}
       # AI:留空为演示模式,填 DeepSeek key 后 docker compose restart app 生效

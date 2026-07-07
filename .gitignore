@@ -4,3 +4,4 @@ server/data/
 .DS_Store
 desktop/dist-app/
 deploy/ds-local.json
+deploy/.env

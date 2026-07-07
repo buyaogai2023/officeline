@@ -12,6 +12,8 @@ const { createStorage } = require('./storage');
 const PORT = Number(process.env.OFFICELINE_PORT || 9130);
 // 浏览器访问 Document Server 的地址
 const DS_PUBLIC = process.env.OFFICELINE_DS_PUBLIC || 'http://localhost:8080';
+// 后端进程访问 DS 的地址(compose 里是 http://ds;单机默认与浏览器地址相同)
+const DS_INTERNAL = process.env.OFFICELINE_DS_INTERNAL || DS_PUBLIC;
 // Document Server(容器内)回访本服务的地址
 const SELF_FOR_DS = process.env.OFFICELINE_SELF_FOR_DS || `http://host.docker.internal:${PORT}`;
 // DS JWT(公网部署必开):与 Document Server 的 JWT_SECRET 一致;设置后编辑器配置签名、回调验签。
@@ -512,7 +514,7 @@ route('POST', /^\/onlyoffice\/callback\/([0-9a-f]+)$/, async (req, res, m) => {
   }
   if ((body.status === 2 || body.status === 6) && body.url) {
     // DS 给的地址是容器可达地址;从宿主机取要换成映射端口
-    const dlUrl = body.url.replace('http://localhost/', `${DS_PUBLIC}/`).replace(':80/', ':8080/');
+    const dlUrl = body.url.replace('http://localhost/', `${DS_INTERNAL}/`).replace(':80/', ':8080/');
     const r = await fetch(dlUrl);
     if (r.ok) {
       const v = await saveVersion(m[1], Buffer.from(await r.arrayBuffer()));
