@@ -1,6 +1,13 @@
 # Officeline
 
-自有品牌的云文档办公套件(Windows / macOS)。编辑器内核使用 ONLYOFFICE Document Server(AGPLv3,商业闭源发布前需购买 Developer Edition 授权),云存档、版本历史、账号订阅、AI 助手为自研。
+开源的云文档办公套件(Windows / macOS / Web)。编辑器内核使用 [ONLYOFFICE Document Server](https://github.com/ONLYOFFICE/DocumentServer)(AGPLv3),云存档、版本历史、账号订阅、只读分享、回收站、AI 助手为自研。
+
+## 协议与商业模式
+
+- 本项目以 **AGPL-3.0** 开源(见 [LICENSE](LICENSE)),与所用的 ONLYOFFICE 内核协议一致;
+- 代码自由使用、修改、自部署;基于本项目提供网络服务时,须按 AGPL 向你的用户提供源代码;
+- 官方托管版通过**云存档订阅 + AI 额度**收费——付费买的是托管、同步与省心,不是代码;
+- ONLYOFFICE 是 Ascensio System SIA 的商标,本项目与其无隶属关系。
 
 ## 架构
 
