@@ -196,10 +196,17 @@ function editorHtml(f, user) {
     },
   };
   return `<!doctype html><html><head><meta charset="utf-8"><title>${f.name} — Officeline</title>
-<style>html,body,#editor{margin:0;padding:0;height:100%;width:100%;overflow:hidden}</style></head>
+<style>html,body,#editor{margin:0;padding:0;height:100%;width:100%;overflow:hidden}
+#dsErr{display:none;font-family:-apple-system,"PingFang SC",sans-serif;max-width:520px;margin:80px auto;line-height:1.8;color:#1c2330}
+#dsErr code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head>
 <body><div id="editor"></div>
-<script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"></script>
-<script>new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));</script>
+<div id="dsErr"><h2>编辑服务未启动</h2>
+<p>无法连接文档编辑服务(Document Server)。请在终端执行:</p>
+<p><code>colima start && docker start officeline-ds</code></p>
+<p>首次安装或容器不存在时运行 <code>deploy/setup-ds.sh</code>,然后刷新本页。</p></div>
+<script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"
+  onerror="document.getElementById('dsErr').style.display='block'"></script>
+<script>if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));</script>
 </body></html>`;
 }
 
