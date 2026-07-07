@@ -5,239 +5,572 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Officeline — 云文档</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2330; --sub:#6b7280; --line:#e5e7eb; --brand:#2563eb; --brand2:#1d4ed8; --ok:#059669; }
-  * { box-sizing:border-box; }
-  body { margin:0; font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--ink); }
-  header { display:flex; align-items:center; gap:12px; padding:14px 24px; background:var(--card); border-bottom:1px solid var(--line); }
-  .logo { font-size:20px; font-weight:700; }
-  .logo b { color:var(--brand); }
-  .spacer { flex:1; }
-  main { max-width:960px; margin:24px auto; padding:0 16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
-  button { border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; background:var(--brand); color:#fff; }
-  button:hover { background:var(--brand2); }
-  button.ghost { background:transparent; color:var(--brand); border:1px solid var(--brand); }
-  button.plain { background:transparent; color:var(--sub); padding:6px 8px; }
-  button.plain:hover { color:var(--ink); background:var(--bg); }
-  input, textarea, select { border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:14px; width:100%; font-family:inherit; }
-  .row { display:flex; gap:10px; align-items:center; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--line); font-size:14px; }
-  th { color:var(--sub); font-weight:500; }
-  tr:hover td { background:#fafbfc; }
-  .name { cursor:pointer; color:var(--brand); font-weight:500; }
-  .sub { color:var(--sub); font-size:13px; }
-  .quota { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin:6px 0; }
-  .quota > div { height:100%; background:var(--brand); border-radius:4px; }
-  .pill { font-size:12px; padding:2px 10px; border-radius:99px; background:#eef2ff; color:var(--brand); }
-  .pill.pro { background:#ecfdf5; color:var(--ok); }
-  #aiOut { white-space:pre-wrap; background:var(--bg); border-radius:8px; padding:12px; font-size:14px; min-height:48px; }
-  .hidden { display:none !important; }
-  h3 { margin:0 0 12px; font-size:16px; }
-  dialog { border:1px solid var(--line); border-radius:12px; padding:20px; min-width:380px; }
-  dialog::backdrop { background:rgba(0,0,0,.3); }
+/* ===== 设计令牌(ui-ux-pro-max: Document grey + scan blue) ===== */
+:root {
+  --primary: #1e293b; --on-primary: #ffffff;
+  --accent: #2563eb; --accent-hover: #1d4ed8; --accent-soft: #eff6ff;
+  --bg: #f8fafc; --surface: #ffffff; --fg: #0f172a; --fg-sub: #64748b;
+  --muted: #f1f5f9; --border: #e2e8f0; --border-strong: #cbd5e1;
+  --danger: #dc2626; --danger-soft: #fef2f2;
+  --ok: #059669; --ok-soft: #ecfdf5;
+  --warn: #b45309; --warn-soft: #fffbeb;
+  --shadow-1: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-2: 0 4px 16px rgba(15,23,42,.08);
+  --shadow-3: 0 12px 32px rgba(15,23,42,.14);
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+  --dur: 200ms; --ease: cubic-bezier(.2,.6,.3,1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #e2e8f0; --on-primary: #0f172a;
+    --accent: #60a5fa; --accent-hover: #93c5fd; --accent-soft: #172554;
+    --bg: #0b1120; --surface: #101827; --fg: #e6ebf4; --fg-sub: #8b98ad;
+    --muted: #17202f; --border: #223047; --border-strong: #33455f;
+    --danger: #f87171; --danger-soft: #2a1215;
+    --ok: #34d399; --ok-soft: #06281e;
+    --warn: #fbbf24; --warn-soft: #2a2108;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-2: 0 4px 16px rgba(0,0,0,.5);
+    --shadow-3: 0 12px 32px rgba(0,0,0,.6);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; }
+svg { flex: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ===== 按钮体系 ===== */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px; border: 0;
+  border-radius: var(--r-md); padding: 9px 16px; font-size: 14px; font-weight: 500;
+  min-height: 38px; transition: background var(--dur) var(--ease), transform 120ms var(--ease), box-shadow var(--dur) var(--ease);
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-1); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { background: transparent; color: var(--fg); border: 1px solid var(--border-strong); }
+.btn-ghost:hover { background: var(--muted); }
+.btn-quiet { background: transparent; color: var(--fg-sub); padding: 7px 10px; min-height: 34px; border-radius: var(--r-sm); }
+.btn-quiet:hover { background: var(--muted); color: var(--fg); }
+.btn-quiet.danger:hover { background: var(--danger-soft); color: var(--danger); }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) { .btn-primary { color: #0b1120; } }
+
+/* ===== 顶栏 ===== */
+header {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 28px; height: 60px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.brand .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+.spacer { flex: 1; }
+.user-chip { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--fg-sub); }
+.pill { font-size: 12px; font-weight: 500; padding: 3px 11px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.pill.pro { background: var(--ok-soft); color: var(--ok); }
+
+main { max-width: 980px; margin: 0 auto; padding: 28px 20px 90px; }
+
+/* ===== 登录 ===== */
+.auth-wrap { min-height: calc(100dvh - 60px); display: grid; place-items: center; padding: 24px; }
+.auth-card {
+  width: 100%; max-width: 400px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 36px 34px 30px; box-shadow: var(--shadow-2);
+  animation: rise .35s var(--ease);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.auth-card h1 { font-size: 22px; margin: 18px 0 4px; letter-spacing: -.01em; }
+.auth-card .sub { color: var(--fg-sub); font-size: 14px; margin: 0 0 24px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--fg); }
+.field .control { position: relative; }
+.field input {
+  width: 100%; border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  background: var(--surface); color: var(--fg);
+  padding: 10px 13px; font-size: 15px; min-height: 42px;
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.field .hint { font-size: 12.5px; color: var(--fg-sub); margin-top: 5px; }
+.field .err { font-size: 12.5px; color: var(--danger); margin-top: 5px; display: none; }
+.field.invalid input { border-color: var(--danger); }
+.field.invalid .err { display: block; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; color: var(--fg-sub); padding: 6px; border-radius: var(--r-sm); display: grid; place-items: center; }
+.pw-toggle:hover { color: var(--fg); background: var(--muted); }
+.auth-switch { text-align: center; font-size: 13.5px; color: var(--fg-sub); margin-top: 18px; }
+.auth-switch a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.auth-switch a:hover { text-decoration: underline; }
+#authErr { display: none; align-items: center; gap: 8px; background: var(--danger-soft); color: var(--danger); font-size: 13.5px; border-radius: var(--r-md); padding: 10px 12px; margin-bottom: 16px; }
+
+/* ===== 卡片 / 存储 ===== */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); }
+.storage-card { display: flex; align-items: center; gap: 22px; padding: 18px 22px; margin-bottom: 18px; }
+.storage-info { flex: 1; min-width: 0; }
+.storage-head { display: flex; justify-content: space-between; font-size: 13px; color: var(--fg-sub); margin-bottom: 8px; }
+.storage-head b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter { height: 6px; border-radius: 3px; background: var(--muted); overflow: hidden; }
+.meter > div { height: 100%; border-radius: 3px; background: var(--accent); width: 0; transition: width .5s var(--ease); }
+.meter.hot > div { background: var(--warn); }
+
+/* ===== 工具栏 ===== */
+.toolbar { display: flex; align-items: center; gap: 10px; padding: 16px 22px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.menu-anchor { position: relative; }
+.menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 190px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-3); padding: 6px; display: none;
+  animation: pop .16s var(--ease);
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.menu.open { display: block; }
+.menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: var(--r-sm);
+  padding: 9px 10px; font-size: 14px; color: var(--fg); min-height: 40px;
+}
+.menu button:hover { background: var(--muted); }
+
+/* ===== 文件列表 ===== */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
+th { color: var(--fg-sub); font-weight: 500; font-size: 12.5px; letter-spacing: .02em; white-space: nowrap; }
+tbody tr { transition: background var(--dur); }
+tbody tr:hover { background: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; color: var(--fg-sub); white-space: nowrap; }
+.file-cell { display: flex; align-items: center; gap: 11px; min-width: 0; cursor: pointer; }
+.file-icon { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; }
+.file-icon.docx { background: var(--accent-soft); color: var(--accent); }
+.file-icon.xlsx { background: var(--ok-soft); color: var(--ok); }
+.file-icon.pptx { background: var(--warn-soft); color: var(--warn); }
+.file-name { font-weight: 500; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; }
+.file-cell:hover .file-name { color: var(--accent); }
+.row-actions { display: flex; gap: 2px; justify-content: flex-end; opacity: .55; transition: opacity var(--dur); }
+tr:hover .row-actions, tr:focus-within .row-actions { opacity: 1; }
+@media (hover: none) { .row-actions { opacity: 1; } }
+@media (max-width: 640px) { .col-hide { display: none; } .file-name { max-width: 42vw; } }
+
+/* 骨架屏 */
+.skel td > div { height: 14px; border-radius: 7px; background: linear-gradient(90deg, var(--muted) 25%, var(--border) 50%, var(--muted) 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* 空状态 */
+.empty { text-align: center; padding: 56px 20px 60px; color: var(--fg-sub); }
+.empty svg { color: var(--border-strong); margin-bottom: 14px; }
+.empty p { margin: 0 0 18px; font-size: 14.5px; }
+
+/* ===== AI 卡片 ===== */
+.ai-card { margin-top: 18px; padding: 20px 22px; }
+.ai-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+.ai-head .t { font-size: 15.5px; font-weight: 600; }
+.ai-head .q { font-size: 12.5px; color: var(--fg-sub); margin-left: auto; font-variant-numeric: tabular-nums; }
+.ai-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+select, textarea {
+  border: 1px solid var(--border-strong); border-radius: var(--r-md);
+  background: var(--surface); color: var(--fg);
+  padding: 9px 12px; font-size: 14px; font-family: inherit;
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+textarea { width: 100%; resize: vertical; line-height: 1.6; }
+#aiOut { white-space: pre-wrap; background: var(--muted); border-radius: var(--r-md); padding: 13px 15px; font-size: 14px; margin-top: 12px; min-height: 20px; display: none; }
+#aiOut.show { display: block; animation: rise .25s var(--ease); }
+
+/* ===== 对话框 ===== */
+dialog {
+  border: 1px solid var(--border); border-radius: var(--r-lg); padding: 0;
+  background: var(--surface); color: var(--fg); min-width: min(430px, 92vw);
+  box-shadow: var(--shadow-3);
+}
+dialog::backdrop { background: rgba(9,14,24,.5); backdrop-filter: blur(2px); }
+dialog[open] { animation: rise .22s var(--ease); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 0; }
+.dlg-head h3 { margin: 0; font-size: 16.5px; }
+.dlg-body { padding: 14px 22px 20px; }
+.dlg-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 0 22px 20px; }
+.ver-row { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.ver-row:last-child { border-bottom: 0; }
+.ver-row .meta { color: var(--fg-sub); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ===== Toast ===== */
+#toasts { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast {
+  display: flex; align-items: center; gap: 9px;
+  background: var(--primary); color: var(--on-primary);
+  border-radius: 99px; padding: 10px 18px; font-size: 13.5px; box-shadow: var(--shadow-3);
+  animation: toast-in .28s var(--ease);
+}
+.toast.out { transition: opacity .3s, transform .3s; opacity: 0; transform: translateY(8px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+
+.hidden { display: none !important; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
+
 <header>
-  <div class="logo"><b>Office</b>line</div>
-  <span class="sub">你的文档,随时随地</span>
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    </span>
+    Officeline
+  </div>
   <div class="spacer"></div>
-  <span id="who" class="sub"></span>
-  <span id="planPill" class="pill hidden"></span>
-  <button id="logoutBtn" class="plain hidden">退出</button>
+  <div class="user-chip">
+    <span id="who"></span>
+    <span id="planPill" class="pill hidden"></span>
+    <button id="logoutBtn" class="btn btn-quiet hidden" aria-label="退出登录">退出</button>
+  </div>
 </header>
-<main>
-  <!-- 登录 -->
-  <div id="authCard" class="card" style="max-width:420px;margin:60px auto;">
-    <h3 id="authTitle">登录 Officeline</h3>
-    <div style="display:grid;gap:10px;">
-      <input id="email" type="email" placeholder="邮箱">
-      <input id="password" type="password" placeholder="密码(至少6位)">
-      <button id="authBtn">登录</button>
-      <div class="sub" style="text-align:center;">
-        <a href="#" id="authSwitch">没有账号?注册</a>
-      </div>
-      <div id="authErr" class="sub" style="color:#dc2626;"></div>
+
+<!-- ===== 登录 / 注册 ===== -->
+<div id="authView" class="auth-wrap">
+  <form class="auth-card" id="authForm" novalidate>
+    <span class="mark" style="width:42px;height:42px;border-radius:11px;background:var(--accent);display:grid;place-items:center;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+    </span>
+    <h1 id="authTitle">登录 Officeline</h1>
+    <p class="sub">文档、表格、演示,随时同步到云端</p>
+    <div id="authErr" role="alert"></div>
+    <div class="field" id="fEmail">
+      <label for="email">邮箱</label>
+      <div class="control"><input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com"></div>
+      <div class="err">请输入有效的邮箱地址</div>
     </div>
+    <div class="field" id="fPass">
+      <label for="password">密码</label>
+      <div class="control">
+        <input id="password" type="password" autocomplete="current-password" placeholder="至少 6 位">
+        <button type="button" class="pw-toggle" id="pwToggle" aria-label="显示密码">
+          <svg id="eyeOn" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eyeOff" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.5 13.5 0 0 0 2 12s3 8 10 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+        </button>
+      </div>
+      <div class="hint" id="passHint">密码至少 6 位</div>
+      <div class="err">密码至少需要 6 位</div>
+    </div>
+    <button class="btn btn-primary" id="authBtn" type="submit" style="width:100%;justify-content:center;margin-top:6px;">登 录</button>
+    <div class="auth-switch"><a href="#" id="authSwitch">没有账号?免费注册,送 2GB 云空间</a></div>
+  </form>
+</div>
+
+<!-- ===== 主界面 ===== -->
+<main id="appView" class="hidden">
+  <div class="card storage-card">
+    <div class="storage-info">
+      <div class="storage-head"><span>云空间</span><span><b id="quotaUsed"></b> <span id="quotaTotal"></span></span></div>
+      <div class="meter" id="meter"><div id="meterBar"></div></div>
+    </div>
+    <button class="btn btn-ghost" id="upgradeBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      升级专业版 ¥19/月
+    </button>
   </div>
 
-  <!-- 主界面 -->
-  <div id="app" class="hidden">
-    <div class="card">
-      <div class="row" style="justify-content:space-between;">
-        <div style="flex:1;">
-          <div class="row sub" style="justify-content:space-between;"><span>云空间</span><span id="quotaText"></span></div>
-          <div class="quota"><div id="quotaBar" style="width:0%"></div></div>
+  <div class="card">
+    <div class="toolbar">
+      <div class="menu-anchor">
+        <button class="btn btn-primary" id="newBtn" aria-haspopup="menu" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新建
+        </button>
+        <div class="menu" id="newMenu" role="menu">
+          <button role="menuitem" onclick="newDoc('docx')"><span class="file-icon docx" style="width:28px;height:28px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg></span>文档</button>
+          <button role="menuitem" onclick="newDoc('xlsx')"><span class="file-icon xlsx" style="width:28px;height:28px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg></span>表格</button>
+          <button role="menuitem" onclick="newDoc('pptx')"><span class="file-icon pptx" style="width:28px;height:28px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg></span>演示</button>
         </div>
-        <button id="upgradeBtn" class="ghost" style="margin-left:16px;">升级专业版 ¥19/月</button>
       </div>
+      <button class="btn btn-ghost" onclick="pick.click()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        上传
+      </button>
+      <input id="pick" type="file" accept=".docx,.xlsx,.pptx" class="hidden">
     </div>
-
-    <div class="card">
-      <div class="row" style="margin-bottom:12px;">
-        <button onclick="newDoc('docx')">＋ 新建文档</button>
-        <button onclick="newDoc('xlsx')">＋ 新建表格</button>
-        <button onclick="newDoc('pptx')">＋ 新建演示</button>
-        <div class="spacer"></div>
-        <button class="ghost" onclick="pick.click()">上传文件</button>
-        <input id="pick" type="file" accept=".docx,.xlsx,.pptx" class="hidden">
-      </div>
+    <div class="table-wrap">
       <table>
-        <thead><tr><th>名称</th><th>大小</th><th>更新时间</th><th style="width:180px;"></th></tr></thead>
+        <thead><tr><th>名称</th><th class="col-hide" style="width:90px;">大小</th><th class="col-hide" style="width:170px;">更新时间</th><th style="width:150px;"></th></tr></thead>
         <tbody id="fileRows"></tbody>
       </table>
-      <div id="empty" class="sub hidden" style="text-align:center;padding:24px;">还没有文件,新建一个试试</div>
     </div>
-
-    <div class="card">
-      <h3>AI 助手 <span class="sub" id="aiQuotaText"></span></h3>
-      <div class="row" style="margin-bottom:10px;">
-        <select id="aiAction" style="width:auto;">
-          <option value="polish">润色文字</option>
-          <option value="summarize">总结要点</option>
-          <option value="translate">中英互译</option>
-          <option value="formula">生成表格公式</option>
-        </select>
-        <button id="aiBtn">运行</button>
-      </div>
-      <textarea id="aiIn" rows="3" placeholder="粘贴文字,或描述你要的公式,例如:统计B列大于100的行数"></textarea>
-      <div id="aiOut" style="margin-top:10px;"></div>
+    <div id="empty" class="empty hidden">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <p>还没有文件,创建第一份云文档吧</p>
+      <button class="btn btn-primary" onclick="newDoc('docx')">新建文档</button>
     </div>
   </div>
 
-  <!-- 版本历史 -->
-  <dialog id="verDlg">
-    <h3>版本历史</h3>
-    <table><tbody id="verRows"></tbody></table>
-    <div class="row" style="justify-content:flex-end;margin-top:12px;"><button class="plain" onclick="verDlg.close()">关闭</button></div>
-  </dialog>
+  <div class="card ai-card">
+    <div class="ai-head">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+      <span class="t">AI 助手</span>
+      <span class="q" id="aiQuotaText"></span>
+    </div>
+    <div class="ai-row">
+      <select id="aiAction" aria-label="选择 AI 功能">
+        <option value="polish">润色文字</option>
+        <option value="summarize">总结要点</option>
+        <option value="translate">中英互译</option>
+        <option value="formula">生成表格公式</option>
+      </select>
+      <button class="btn btn-primary" id="aiBtn">运行</button>
+    </div>
+    <textarea id="aiIn" rows="3" placeholder="粘贴文字,或描述你要的公式,例如:统计 B 列大于 100 的行数"></textarea>
+    <div id="aiOut" aria-live="polite"></div>
+  </div>
 </main>
+
+<!-- 版本历史 -->
+<dialog id="verDlg">
+  <div class="dlg-head"><h3>版本历史</h3><button class="btn btn-quiet" onclick="verDlg.close()" aria-label="关闭">✕</button></div>
+  <div class="dlg-body" id="verRows"></div>
+</dialog>
+
+<!-- 删除确认 -->
+<dialog id="delDlg">
+  <div class="dlg-head"><h3>删除文件</h3><button class="btn btn-quiet" onclick="delDlg.close()" aria-label="关闭">✕</button></div>
+  <div class="dlg-body">确定删除「<span id="delName"></span>」吗?删除后可联系管理员恢复。</div>
+  <div class="dlg-foot">
+    <button class="btn btn-ghost" onclick="delDlg.close()">取消</button>
+    <button class="btn btn-primary" id="delConfirm" style="background:var(--danger);">删除</button>
+  </div>
+</dialog>
+
+<div id="toasts" aria-live="polite"></div>
+
 <script>
 const $ = (id) => document.getElementById(id);
+const urlTok = new URLSearchParams(location.search).get('token');
+if (urlTok) { localStorage.setItem('ol_token', urlTok); history.replaceState(null, '', location.pathname); }
 let token = localStorage.getItem('ol_token') || '';
-let isRegister = false;
-let curFileId = null;
+let isRegister = false, curFileId = null, pendingDel = null;
 
 const fmtSize = (n) => n > 1048576 ? (n/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
 const fmtTime = (t) => new Date(t).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const esc = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, ok = true) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = (ok
+    ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>')
+    + esc(msg);
+  $('toasts').appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, 3200);
+}
 
 async function api(path, opts = {}) {
   opts.headers = Object.assign({ authorization: 'Bearer ' + token }, opts.headers);
   const r = await fetch(path, opts);
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) { logout(); throw new Error('登录已过期'); }
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  if (r.status === 401) { logout(); throw new Error('登录已过期,请重新登录'); }
+  if (!r.ok) throw new Error(j.error || ('请求失败(' + r.status + ')'));
   return j;
 }
 
-function logout() { token=''; localStorage.removeItem('ol_token'); $('authCard').classList.remove('hidden'); $('app').classList.add('hidden'); $('logoutBtn').classList.add('hidden'); $('planPill').classList.add('hidden'); $('who').textContent=''; }
+function setBusy(btn, busy, label) {
+  if (busy) { btn.dataset.t = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = '<svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>' + (label || '处理中…');
+  } else { btn.disabled = false; btn.innerHTML = btn.dataset.t; }
+}
+
+/* ---------- 认证 ---------- */
+function logout() {
+  token = ''; localStorage.removeItem('ol_token');
+  $('authView').classList.remove('hidden'); $('appView').classList.add('hidden');
+  $('logoutBtn').classList.add('hidden'); $('planPill').classList.add('hidden');
+  $('who').textContent = '';
+}
 $('logoutBtn').onclick = logout;
 
-$('authSwitch').onclick = (e) => { e.preventDefault(); isRegister = !isRegister;
+$('authSwitch').onclick = (e) => {
+  e.preventDefault(); isRegister = !isRegister;
   $('authTitle').textContent = isRegister ? '注册 Officeline' : '登录 Officeline';
-  $('authBtn').textContent = isRegister ? '注册' : '登录';
-  $('authSwitch').textContent = isRegister ? '已有账号?登录' : '没有账号?注册'; };
+  $('authBtn').textContent = isRegister ? '创建账号' : '登 录';
+  $('authSwitch').textContent = isRegister ? '已有账号?直接登录' : '没有账号?免费注册,送 2GB 云空间';
+  $('password').autocomplete = isRegister ? 'new-password' : 'current-password';
+};
 
-$('authBtn').onclick = async () => {
-  $('authErr').textContent = '';
+$('pwToggle').onclick = () => {
+  const p = $('password'), show = p.type === 'password';
+  p.type = show ? 'text' : 'password';
+  $('eyeOn').classList.toggle('hidden', show); $('eyeOff').classList.toggle('hidden', !show);
+  $('pwToggle').setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+};
+
+$('authForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const email = $('email').value.trim(), pass = $('password').value;
+  const be = $('authErr'); be.style.display = 'none';
+  let bad = false;
+  $('fEmail').classList.toggle('invalid', !(/.+@.+\..+/.test(email))); bad = bad || !(/.+@.+\..+/.test(email));
+  $('fPass').classList.toggle('invalid', pass.length < 6); bad = bad || pass.length < 6;
+  if (bad) return;
+  setBusy($('authBtn'), true, isRegister ? '创建中…' : '登录中…');
   try {
     const r = await fetch('/api/auth/' + (isRegister ? 'register' : 'login'), {
-      method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value })
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error);
     token = j.token; localStorage.setItem('ol_token', token);
-    enter();
-  } catch (e) { $('authErr').textContent = e.message; }
+    await enter();
+  } catch (err) {
+    be.textContent = err.message; be.style.display = 'flex';
+  } finally { setBusy($('authBtn'), false); }
 };
 
+/* ---------- 主界面 ---------- */
 async function enter() {
   const me = await api('/api/me');
-  $('authCard').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('authView').classList.add('hidden'); $('appView').classList.remove('hidden');
   $('logoutBtn').classList.remove('hidden');
   $('who').textContent = me.email;
   const pill = $('planPill'); pill.classList.remove('hidden');
-  pill.textContent = me.planName; pill.className = 'pill' + (me.plan==='pro' ? ' pro' : '');
-  $('upgradeBtn').style.display = me.plan==='pro' ? 'none' : '';
-  $('quotaText').textContent = fmtSize(me.used) + ' / ' + (me.quota/1073741824) + ' GB';
-  $('quotaBar').style.width = Math.min(100, me.used/me.quota*100) + '%';
-  $('aiQuotaText').textContent = '本月已用 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
+  pill.textContent = me.planName; pill.className = 'pill' + (me.plan === 'pro' ? ' pro' : '');
+  $('upgradeBtn').style.display = me.plan === 'pro' ? 'none' : '';
+  $('quotaUsed').textContent = fmtSize(me.used);
+  $('quotaTotal').textContent = '/ ' + (me.quota/1073741824) + ' GB';
+  const pct = Math.min(100, me.used/me.quota*100);
+  $('meterBar').style.width = pct + '%';
+  $('meter').classList.toggle('hot', pct > 85);
+  $('aiQuotaText').textContent = '本月 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
   await loadFiles();
 }
 
+const ICONS = {
+  docx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>',
+  xlsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>',
+  pptx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/></svg>',
+};
+const ABTN = {
+  open: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  share: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>',
+  history: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><polyline points="12 7 12 12 15 15"/></svg>',
+  del: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+};
+
+function skeleton() {
+  $('fileRows').innerHTML = Array(3).fill(0).map(() =>
+    '<tr class="skel"><td><div style="width:55%"></div></td><td class="col-hide"><div style="width:70%"></div></td><td class="col-hide"><div style="width:80%"></div></td><td><div style="width:40%;margin-left:auto;"></div></td></tr>').join('');
+}
+
 async function loadFiles() {
+  skeleton();
   const { files } = await api('/api/files');
   $('empty').classList.toggle('hidden', files.length > 0);
-  $('fileRows').innerHTML = files.map(f => `<tr>
-    <td class="name" onclick="openFile('${f.id}')">${f.name}</td>
-    <td class="sub">${fmtSize(f.size)}</td>
-    <td class="sub">${fmtTime(f.updated_at)} · v${f.current_version}</td>
-    <td style="text-align:right;">
-      <button class="plain" onclick="openFile('${f.id}')">打开</button>
-      <button class="plain" onclick="shareFile('${f.id}')">分享</button>
-      <button class="plain" onclick="showVersions('${f.id}')">历史</button>
-      <button class="plain" onclick="delFile('${f.id}','${f.name.replace(/'/g,'')}')">删除</button>
-    </td></tr>`).join('');
+  $('fileRows').innerHTML = files.map(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    return `<tr>
+    <td><span class="file-cell" onclick="openFile('${f.id}')" tabindex="0" role="link"
+          onkeydown="if(event.key==='Enter')openFile('${f.id}')">
+      <span class="file-icon ${ext}">${ICONS[ext] || ICONS.docx}</span>
+      <span class="file-name">${esc(f.name)}</span></span></td>
+    <td class="num col-hide">${fmtSize(f.size)}</td>
+    <td class="num col-hide">${fmtTime(f.updated_at)} · v${f.current_version}</td>
+    <td><div class="row-actions">
+      <button class="btn btn-quiet" onclick="openFile('${f.id}')" aria-label="打开" title="打开">${ABTN.open}</button>
+      <button class="btn btn-quiet" onclick="shareFile('${f.id}')" aria-label="分享" title="分享">${ABTN.share}</button>
+      <button class="btn btn-quiet" onclick="showVersions('${f.id}')" aria-label="版本历史" title="版本历史">${ABTN.history}</button>
+      <button class="btn btn-quiet danger" onclick="askDelete('${f.id}', '${esc(f.name).replace(/'/g,'')}')" aria-label="删除" title="删除">${ABTN.del}</button>
+    </div></td></tr>`; }).join('');
 }
 
 function openFile(id) { window.open('/editor/' + id + '?token=' + encodeURIComponent(token), '_blank'); }
 
+/* 新建菜单 */
+const newBtn = $('newBtn'), newMenu = $('newMenu');
+newBtn.onclick = (e) => { e.stopPropagation(); const open = newMenu.classList.toggle('open'); newBtn.setAttribute('aria-expanded', open); };
+document.addEventListener('click', () => { newMenu.classList.remove('open'); newBtn.setAttribute('aria-expanded', 'false'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') newMenu.classList.remove('open'); });
+
 async function newDoc(type) {
+  newMenu.classList.remove('open');
   const name = prompt('文件名:', '未命名'); if (name === null) return;
-  const { id } = await api('/api/files/new', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, type }) });
-  await enter(); openFile(id);
+  try {
+    const { id } = await api('/api/files/new', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ name, type }) });
+    await enter(); openFile(id); toast('已创建');
+  } catch (e) { toast(e.message, false); }
 }
 
 pick.onchange = async () => {
   const f = pick.files[0]; if (!f) return;
   try {
     await api('/api/files', { method:'POST', headers:{'x-file-name': encodeURIComponent(f.name)}, body: f });
-    await enter();
-  } catch (e) { alert(e.message); }
+    await enter(); toast('上传成功');
+  } catch (e) { toast(e.message, false); }
   pick.value = '';
 };
 
+/* 分享 */
 async function shareFile(id) {
-  const { url } = await api('/api/files/' + id + '/share', { method:'POST' });
-  const full = location.origin + url;
-  try { await navigator.clipboard.writeText(full); alert('只读分享链接已复制:\n' + full); }
-  catch { prompt('只读分享链接(手动复制):', full); }
+  try {
+    const { url } = await api('/api/files/' + id + '/share', { method:'POST' });
+    const full = location.origin + url;
+    try { await navigator.clipboard.writeText(full); toast('只读分享链接已复制'); }
+    catch { prompt('分享链接(手动复制):', full); }
+  } catch (e) { toast(e.message, false); }
 }
 
-async function delFile(id, name) {
-  if (!confirm('删除「' + name + '」?')) return;
-  await api('/api/files/' + id, { method:'DELETE' });
-  await enter();
-}
+/* 删除 */
+function askDelete(id, name) { pendingDel = id; $('delName').textContent = name; delDlg.showModal(); }
+$('delConfirm').onclick = async () => {
+  try { await api('/api/files/' + pendingDel, { method:'DELETE' }); delDlg.close(); await enter(); toast('已删除'); }
+  catch (e) { toast(e.message, false); }
+};
 
+/* 版本历史 */
 async function showVersions(id) {
   curFileId = id;
   const { current, versions } = await api('/api/files/' + id + '/versions');
-  $('verRows').innerHTML = versions.map(v => `<tr>
-    <td>v${v.version}${v.version===current?' <span class="pill">当前</span>':''}</td>
-    <td class="sub">${fmtSize(v.size)}</td><td class="sub">${fmtTime(v.created_at)}</td>
-    <td>${v.version===current?'':'<button class="plain" onclick="restore('+v.version+')">恢复</button>'}</td></tr>`).join('');
+  $('verRows').innerHTML = versions.map(v => `<div class="ver-row">
+    <b style="min-width:44px;">v${v.version}</b>
+    ${v.version===current ? '<span class="pill">当前</span>' : ''}
+    <span class="meta">${fmtSize(v.size)} · ${fmtTime(v.created_at)}</span>
+    <span style="flex:1"></span>
+    ${v.version===current ? '' : '<button class="btn btn-quiet" onclick="restore('+v.version+')">恢复此版本</button>'}
+  </div>`).join('');
   verDlg.showModal();
 }
 async function restore(v) {
-  await api('/api/files/' + curFileId + '/restore', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ version: v }) });
-  verDlg.close(); await enter();
+  try {
+    await api('/api/files/' + curFileId + '/restore', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ version: v }) });
+    verDlg.close(); await enter(); toast('已恢复为新版本');
+  } catch (e) { toast(e.message, false); }
 }
 
+/* 升级 */
 $('upgradeBtn').onclick = async () => {
-  const r = await api('/api/billing/upgrade', { method:'POST' });
-  alert(r.note); await enter();
+  try { const r = await api('/api/billing/upgrade', { method:'POST' }); toast(r.note); await enter(); }
+  catch (e) { toast(e.message, false); }
 };
 
+/* AI */
 $('aiBtn').onclick = async () => {
-  $('aiOut').textContent = '思考中…';
+  const out = $('aiOut');
+  out.classList.add('show'); out.textContent = '思考中…';
+  setBusy($('aiBtn'), true, '');
   try {
     const r = await api('/api/ai', { method:'POST', headers:{'content-type':'application/json'},
       body: JSON.stringify({ action: $('aiAction').value, text: $('aiIn').value }) });
-    $('aiOut').textContent = r.result;
-  } catch (e) { $('aiOut').textContent = '出错:' + e.message; }
+    out.textContent = r.result;
+    if (r.aiUsed != null) $('aiQuotaText').textContent = '本月 ' + r.aiUsed + ' / ' + r.aiQuota + ' 次';
+  } catch (e) { out.textContent = '出错:' + e.message; }
+  finally { setBusy($('aiBtn'), false); }
 };
 
 if (token) enter().catch(logout);
