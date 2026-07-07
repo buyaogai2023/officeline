@@ -305,10 +305,14 @@ dialog[open] { animation: rise .22s var(--ease); }
       </button>
       <input id="pick" type="file" accept=".docx,.xlsx,.pptx" class="hidden">
       <div class="spacer"></div>
-      <div class="search-box">
+      <div class="search-box" id="searchBox">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input id="search" type="search" placeholder="搜索文件…" aria-label="搜索文件">
       </div>
+      <button class="btn btn-quiet" id="trashBtn" aria-pressed="false">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        回收站
+      </button>
     </div>
     <div class="table-wrap">
       <table>
@@ -385,7 +389,7 @@ dialog[open] { animation: rise .22s var(--ease); }
 <!-- 删除确认 -->
 <dialog id="delDlg">
   <div class="dlg-head"><h3>删除文件</h3><button class="btn btn-quiet" onclick="delDlg.close()" aria-label="关闭">✕</button></div>
-  <div class="dlg-body">确定删除「<span id="delName"></span>」吗?删除后可联系管理员恢复。</div>
+  <div class="dlg-body" id="delBody">确定删除「<span id="delName"></span>」吗?删除后可在回收站找回。</div>
   <div class="dlg-foot">
     <button class="btn btn-ghost" onclick="delDlg.close()">取消</button>
     <button class="btn btn-primary" id="delConfirm" style="background:var(--danger);">删除</button>
@@ -515,11 +519,62 @@ function skeleton() {
 }
 
 let allFiles = [];
+let inTrash = false;
+
+$('trashBtn').onclick = async () => {
+  inTrash = !inTrash;
+  const tb = $('trashBtn');
+  tb.setAttribute('aria-pressed', inTrash);
+  tb.style.color = inTrash ? 'var(--accent)' : '';
+  $('newBtn').parentElement.classList.toggle('hidden', inTrash);
+  document.querySelector('.toolbar .btn-ghost').classList.toggle('hidden', inTrash);
+  $('searchBox').classList.toggle('hidden', inTrash);
+  await loadFiles();
+};
+
 async function loadFiles() {
   skeleton();
+  if (inTrash) {
+    const { files } = await api('/api/trash');
+    renderTrash(files);
+    return;
+  }
   const { files } = await api('/api/files');
   allFiles = files;
   renderFiles();
+}
+
+function renderTrash(files) {
+  $('empty').classList.add('hidden');
+  if (!files.length) {
+    $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:36px;">回收站是空的</td></tr>';
+    return;
+  }
+  $('fileRows').innerHTML = files.map(f => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    return `<tr>
+    <td><span class="file-cell" style="cursor:default;">
+      <span class="file-icon ${ext}" style="filter:grayscale(1);opacity:.6;">${ICONS[ext] || ICONS.docx}</span>
+      <span class="file-name" style="color:var(--fg-sub);">${esc(f.name)}</span></span></td>
+    <td class="num col-hide">${fmtSize(f.size)}</td>
+    <td class="num col-hide">删除于 ${fmtTime(f.updated_at)}</td>
+    <td><div class="row-actions" style="opacity:1;">
+      <button class="btn btn-quiet" onclick="undelete('${f.id}')" style="color:var(--accent);">恢复</button>
+      <button class="btn btn-quiet danger" onclick="askPurge('${f.id}', '${esc(f.name).replace(/'/g,'')}')">彻底删除</button>
+    </div></td></tr>`; }).join('');
+}
+
+async function undelete(id) {
+  try { await api('/api/files/' + id + '/undelete', { method:'POST' }); await loadFiles(); toast('已恢复到文件列表'); }
+  catch (e) { toast(e.message, false); }
+}
+let pendingPurge = null;
+function askPurge(id, name) {
+  pendingPurge = id;
+  $('delName').textContent = name;
+  $('delBody').innerHTML = '彻底删除「<b>' + esc(name) + '</b>」吗?<b style="color:var(--danger);">此操作不可恢复</b>,所有历史版本将一并清除,并释放云空间。';
+  $('delConfirm').textContent = '彻底删除';
+  delDlg.showModal();
 }
 function renderFiles() {
   const q = ($('search').value || '').trim().toLowerCase();
@@ -619,11 +674,25 @@ $('shareOff').onclick = async () => {
   } catch (e) { toast(e.message, false); }
 };
 
-/* 删除 */
-function askDelete(id, name) { pendingDel = id; $('delName').textContent = name; delDlg.showModal(); }
+/* 删除(移入回收站)与彻底删除共用确认框 */
+function askDelete(id, name) {
+  pendingDel = id; pendingPurge = null;
+  $('delName').textContent = name;
+  $('delBody').innerHTML = '确定删除「<b>' + esc(name) + '</b>」吗?删除后可在回收站找回。';
+  $('delConfirm').textContent = '删除';
+  delDlg.showModal();
+}
 $('delConfirm').onclick = async () => {
-  try { await api('/api/files/' + pendingDel, { method:'DELETE' }); delDlg.close(); await enter(); toast('已删除'); }
-  catch (e) { toast(e.message, false); }
+  try {
+    if (pendingPurge) {
+      await api('/api/files/' + pendingPurge + '/purge', { method:'DELETE' });
+      delDlg.close(); await loadFiles(); toast('已彻底删除,空间已释放');
+      pendingPurge = null;
+    } else {
+      await api('/api/files/' + pendingDel, { method:'DELETE' });
+      delDlg.close(); await enter(); toast('已移入回收站');
+    }
+  } catch (e) { toast(e.message, false); }
 };
 
 /* 版本历史 */

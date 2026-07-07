@@ -131,8 +131,9 @@ function bumpAi(uid) {
     ON CONFLICT(user_id, month) DO UPDATE SET count=count+1`).run(uid, curMonth());
 }
 
+// 配额统计包含回收站(彻底删除才释放空间)
 function usedBytes(uid) {
-  const r = db.prepare(`SELECT COALESCE(SUM(v.size),0) AS s FROM versions v JOIN files f ON f.id=v.file_id WHERE f.owner_id=? AND f.deleted=0`).get(uid);
+  const r = db.prepare(`SELECT COALESCE(SUM(v.size),0) AS s FROM versions v JOIN files f ON f.id=v.file_id WHERE f.owner_id=?`).get(uid);
   return Number(r.s);
 }
 
@@ -415,8 +416,36 @@ route('GET', /^\/s\/([A-Za-z0-9_-]+)$/, (req, res, m) => {
 
 route('DELETE', /^\/api\/files\/([0-9a-f]+)$/, (req, res, m) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
-  const r = db.prepare('UPDATE files SET deleted=1 WHERE id=? AND owner_id=?').run(m[1], u.uid);
+  // 移入回收站,同时关闭分享(回收站文件不应再被访客访问)
+  const r = db.prepare('UPDATE files SET deleted=1, share_token=NULL, updated_at=? WHERE id=? AND owner_id=?').run(now(), m[1], u.uid);
   json(res, 200, { ok: r.changes > 0 });
+});
+
+// 回收站列表
+route('GET', /^\/api\/trash$/, (req, res) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  const rows = db.prepare(`SELECT f.id, f.name, f.updated_at, v.size
+    FROM files f JOIN versions v ON v.file_id=f.id AND v.version=f.current_version
+    WHERE f.owner_id=? AND f.deleted=1 ORDER BY f.updated_at DESC`).all(u.uid);
+  json(res, 200, { files: rows });
+});
+
+// 从回收站恢复
+route('POST', /^\/api\/files\/([0-9a-f]+)\/undelete$/, (req, res, m) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  const r = db.prepare('UPDATE files SET deleted=0, updated_at=? WHERE id=? AND owner_id=? AND deleted=1').run(now(), m[1], u.uid);
+  json(res, 200, { ok: r.changes > 0 });
+});
+
+// 彻底删除(释放配额;本地驱动同时清磁盘,S3 模式对象由生命周期策略清理)
+route('DELETE', /^\/api\/files\/([0-9a-f]+)\/purge$/, (req, res, m) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  const f = db.prepare('SELECT * FROM files WHERE id=? AND owner_id=? AND deleted=1').get(m[1], u.uid);
+  if (!f) return json(res, 404, { error: '文件不在回收站' });
+  db.prepare('DELETE FROM versions WHERE file_id=?').run(f.id);
+  db.prepare('DELETE FROM files WHERE id=?').run(f.id);
+  if (storage.name === 'local') fs.rmSync(path.join(FILES_DIR, f.id), { recursive: true, force: true });
+  json(res, 200, { ok: true });
 });
 
 // ONLYOFFICE 保存回调:status 2=编辑结束待保存 6=强制保存
