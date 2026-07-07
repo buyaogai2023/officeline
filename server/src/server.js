@@ -204,9 +204,53 @@ function editorHtml(f, user) {
 <p>无法连接文档编辑服务(Document Server)。请在终端执行:</p>
 <p><code>colima start && docker start officeline-ds</code></p>
 <p>首次安装或容器不存在时运行 <code>deploy/setup-ds.sh</code>,然后刷新本页。</p></div>
+<button id="aiFab" title="AI 助手">✦ AI</button>
+<div id="aiPanel">
+  <div class="aiRow"><b>AI 助手</b><span id="aiClose" style="cursor:pointer;color:#6b7280">✕</span></div>
+  <div class="aiRow">
+    <select id="aiAct"><option value="polish">润色</option><option value="summarize">总结</option>
+    <option value="translate">翻译</option><option value="formula">生成公式</option></select>
+    <button id="aiRun">运行</button>
+  </div>
+  <textarea id="aiTxt" rows="4" placeholder="把文中要处理的文字粘贴到这里"></textarea>
+  <div id="aiRes"></div>
+  <button id="aiCopy" style="display:none">复制结果</button>
+</div>
+<style>
+#aiFab{position:fixed;right:18px;bottom:18px;z-index:99;border:0;border-radius:22px;padding:10px 18px;
+  background:#2563eb;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+#aiPanel{display:none;position:fixed;right:18px;bottom:70px;z-index:99;width:340px;background:#fff;
+  border:1px solid #e5e7eb;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.15);
+  font-family:-apple-system,"PingFang SC",sans-serif;font-size:14px}
+#aiPanel .aiRow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#aiPanel textarea,#aiPanel select{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+#aiPanel select{width:auto;flex:1}
+#aiPanel button{border:0;border-radius:8px;padding:7px 14px;background:#2563eb;color:#fff;cursor:pointer}
+#aiRes{white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:10px;margin-top:8px;max-height:220px;overflow:auto;font-size:13px}
+</style>
 <script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"
   onerror="document.getElementById('dsErr').style.display='block'"></script>
-<script>if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));</script>
+<script>
+if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const token = new URL(location.href).searchParams.get('token');
+  $('aiFab').onclick = () => { $('aiPanel').style.display = $('aiPanel').style.display === 'block' ? 'none' : 'block'; };
+  $('aiClose').onclick = () => { $('aiPanel').style.display = 'none'; };
+  $('aiRun').onclick = async () => {
+    $('aiRes').textContent = '思考中…'; $('aiCopy').style.display = 'none';
+    try {
+      const r = await fetch('/api/ai', { method:'POST',
+        headers:{ 'content-type':'application/json', authorization:'Bearer '+token },
+        body: JSON.stringify({ action: $('aiAct').value, text: $('aiTxt').value }) });
+      const j = await r.json();
+      $('aiRes').textContent = j.result || ('出错:' + j.error);
+      if (j.result) $('aiCopy').style.display = '';
+    } catch (e) { $('aiRes').textContent = '出错:' + e.message; }
+  };
+  $('aiCopy').onclick = () => navigator.clipboard.writeText($('aiRes').textContent);
+})();
+</script>
 </body></html>`;
 }
 
