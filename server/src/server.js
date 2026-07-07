@@ -14,6 +14,9 @@ const PORT = Number(process.env.OFFICELINE_PORT || 9130);
 const DS_PUBLIC = process.env.OFFICELINE_DS_PUBLIC || 'http://localhost:8080';
 // Document Server(容器内)回访本服务的地址
 const SELF_FOR_DS = process.env.OFFICELINE_SELF_FOR_DS || `http://host.docker.internal:${PORT}`;
+// DS JWT(公网部署必开):与 Document Server 的 JWT_SECRET 一致;设置后编辑器配置签名、回调验签。
+// 不设(本地开发)则维持免签名,与 setup-ds.sh 的 JWT_ENABLED=false 配套。
+const DS_JWT = process.env.OFFICELINE_DS_JWT || '';
 // AI 配置:默认 DeepSeek(便宜),OpenAI 兼容协议,不设 key 时返回演示回复
 const AI_BASE = process.env.OFFICELINE_AI_BASE || 'https://api.deepseek.com';
 const AI_MODEL = process.env.OFFICELINE_AI_MODEL || 'deepseek-chat';
@@ -96,6 +99,21 @@ function verifyToken(token) {
 }
 // 供 Document Server 免登录取文件/回调用的短签名
 const dlToken = (fileId) => hmac(`dl:${fileId}`).slice(0, 24);
+
+// ---------- DS JWT(HS256,零依赖) ----------
+function jwtSign(payload) {
+  const seg = (o) => b64u(JSON.stringify(o));
+  const body = `${seg({ alg: 'HS256', typ: 'JWT' })}.${seg(payload)}`;
+  return `${body}.${crypto.createHmac('sha256', DS_JWT).update(body).digest('base64url')}`;
+}
+function jwtVerify(token) {
+  const p = String(token || '').split('.');
+  if (p.length !== 3) return null;
+  const expect = crypto.createHmac('sha256', DS_JWT).update(`${p[0]}.${p[1]}`).digest();
+  let got; try { got = Buffer.from(p[2], 'base64url'); } catch { return null; }
+  if (got.length !== expect.length || !crypto.timingSafeEqual(got, expect)) return null;
+  try { return JSON.parse(Buffer.from(p[1], 'base64url').toString()); } catch { return null; }
+}
 
 function hashPass(pass, salt) {
   return crypto.scryptSync(pass, salt, 32).toString('hex');
@@ -208,6 +226,7 @@ function editorHtml(f, user, viewOnly = false) {
       customization: { autosave: true, forcesave: true, compactHeader: true },
     },
   };
+  if (DS_JWT) cfg.token = jwtSign(cfg);
   // 访客页 CTA:分享链接是零成本获客入口,访客看完文档顺手注册
   const guestCta = !viewOnly ? '' : `
 <div id="olCta">
@@ -482,7 +501,15 @@ route('DELETE', /^\/api\/files\/([0-9a-f]+)\/purge$/, (req, res, m) => {
 route('POST', /^\/onlyoffice\/callback\/([0-9a-f]+)$/, async (req, res, m) => {
   const url = new URL(req.url, 'http://x');
   if (url.searchParams.get('t') !== dlToken(m[1])) return json(res, 403, { error: 0 });
-  const body = JSON.parse((await readBody(req, 1e6)).toString() || '{}');
+  let body = JSON.parse((await readBody(req, 1e6)).toString() || '{}');
+  if (DS_JWT) {
+    // DS 把回调体签进 body.token,或放在 Authorization 头(载荷包在 payload 字段里)
+    const fromBody = jwtVerify(body.token);
+    const fromHeader = (jwtVerify((req.headers.authorization || '').replace(/^Bearer /, '')) || {}).payload;
+    const verified = fromBody || fromHeader;
+    if (!verified) return json(res, 403, { error: 1 });
+    body = verified;
+  }
   if ((body.status === 2 || body.status === 6) && body.url) {
     // DS 给的地址是容器可达地址;从宿主机取要换成映射端口
     const dlUrl = body.url.replace('http://localhost/', `${DS_PUBLIC}/`).replace(':80/', ':8080/');

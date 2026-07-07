@@ -55,7 +55,13 @@ deploy/             Document Server 启动脚本 + 云端 docker-compose 模板
 
 ## 生产部署
 
-参考 [`deploy/docker-compose.cloud.yml`](deploy/docker-compose.cloud.yml):Document Server + 后端 + R2 对象存储 + DeepSeek。上线前请开启 DS 的 JWT 并置于 HTTPS 反代之后。
+全新 Ubuntu 服务器(2GB+ 内存,x86/ARM64 均可,甲骨文 Ampere A1 免费实例实测友好)一条命令:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/buyaogai2023/officeline/main/deploy/bootstrap-cloud.sh | bash
+```
+
+自动完成:装 Docker → 拉代码 → 生成随机 JWT 密钥 → 起 Document Server(JWT 开启)+ 后端 → 打私网回访补丁 → 放行本机防火墙。之后只需在云控制台安全组放行 9130/8080。手动部署与 R2 对象存储见 [`deploy/docker-compose.cloud.yml`](deploy/docker-compose.cloud.yml)。域名就绪后建议置于 HTTPS 反代之后。
 
 | 环境变量 | 默认 | 说明 |
 |---|---|---|
@@ -64,6 +70,7 @@ deploy/             Document Server 启动脚本 + 云端 docker-compose 模板
 | `OFFICELINE_SELF_FOR_DS` | http://host.docker.internal:9130 | DS 回访后端的地址 |
 | `OFFICELINE_STORAGE` | local | `s3` 走对象存储 |
 | `OFFICELINE_S3_ENDPOINT/BUCKET/KEY/SECRET/REGION` | — | s3 模式必填 |
+| `OFFICELINE_DS_JWT` | (关闭) | 与 DS 的 `JWT_SECRET` 一致;设置后编辑器配置签名、回调验签(公网必开) |
 | `OFFICELINE_AI_KEY` | (演示模式) | OpenAI 兼容 API Key |
 | `OFFICELINE_AI_BASE` / `OFFICELINE_AI_MODEL` | api.deepseek.com / deepseek-chat | 可换任意兼容服务 |
 | `OFFICELINE_DATA` | server/data | 数据目录 |
@@ -78,7 +85,8 @@ deploy/             Document Server 启动脚本 + 云端 docker-compose 模板
 
 ## Roadmap
 
-- [ ] 生产 JWT / HTTPS 加固
+- [x] 生产 JWT(`OFFICELINE_DS_JWT`,bootstrap 默认开启)
+- [ ] HTTPS / 域名反代(Caddy)
 - [ ] 支付接入(Paddle / 微信支付)
 - [ ] Windows 安装包与代码签名
 - [ ] 多人协作编辑(DS 原生支持,待打通)

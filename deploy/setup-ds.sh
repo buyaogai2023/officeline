@@ -15,12 +15,13 @@ echo "等待 Document Server 就绪…"
 until curl -sf http://localhost:8080/healthcheck >/dev/null 2>&1; do sleep 3; done
 
 # 启动脚本会重新生成 local.json,就绪后再注入私网访问许可
-docker exec officeline-ds node -e '
-const fs = require("fs");
-const p = "/etc/onlyoffice/documentserver/local.json";
-const j = JSON.parse(fs.readFileSync(p, "utf8"));
-j.services.CoAuthoring["request-filtering-agent"] = { allowPrivateIPAddress: true, allowMetaIPAddress: true };
-fs.writeFileSync(p, JSON.stringify(j, null, 2));
+# (用 python3:新版 DS 镜像不再自带 node 可执行文件)
+docker exec officeline-ds python3 -c '
+import json
+p = "/etc/onlyoffice/documentserver/local.json"
+j = json.load(open(p))
+j["services"]["CoAuthoring"]["request-filtering-agent"] = {"allowPrivateIPAddress": True, "allowMetaIPAddress": True}
+json.dump(j, open(p, "w"), indent=2)
 '
 docker exec officeline-ds supervisorctl restart ds:converter ds:docservice
 until curl -sf http://localhost:8080/healthcheck >/dev/null 2>&1; do sleep 3; done
