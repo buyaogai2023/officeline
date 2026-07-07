@@ -176,6 +176,7 @@ async function loadFiles() {
     <td class="sub">${fmtTime(f.updated_at)} · v${f.current_version}</td>
     <td style="text-align:right;">
       <button class="plain" onclick="openFile('${f.id}')">打开</button>
+      <button class="plain" onclick="shareFile('${f.id}')">分享</button>
       <button class="plain" onclick="showVersions('${f.id}')">历史</button>
       <button class="plain" onclick="delFile('${f.id}','${f.name.replace(/'/g,'')}')">删除</button>
     </td></tr>`).join('');
@@ -197,6 +198,13 @@ pick.onchange = async () => {
   } catch (e) { alert(e.message); }
   pick.value = '';
 };
+
+async function shareFile(id) {
+  const { url } = await api('/api/files/' + id + '/share', { method:'POST' });
+  const full = location.origin + url;
+  try { await navigator.clipboard.writeText(full); alert('只读分享链接已复制:\n' + full); }
+  catch { prompt('只读分享链接(手动复制):', full); }
+}
 
 async function delFile(id, name) {
   if (!confirm('删除「' + name + '」?')) return;

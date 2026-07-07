@@ -68,6 +68,8 @@ db.exec(`
   );
 `);
 
+try { db.exec('ALTER TABLE files ADD COLUMN share_token TEXT'); } catch { /* 列已存在 */ }
+
 const PLANS = {
   free: { name: '免费版', quota: 2 * 1024 ** 3, aiQuota: 20 },
   pro: { name: '专业版', quota: 100 * 1024 ** 3, aiQuota: 1000 },
@@ -177,33 +179,26 @@ async function aiChat(action, text) {
 }
 
 // ---------- 编辑器页面 ----------
-function editorHtml(f, user) {
+function editorHtml(f, user, viewOnly = false) {
   const ext = path.extname(f.name).slice(1);
   const cfg = {
     document: {
       fileType: ext,
-      key: `${f.id}-v${f.current_version}`,
+      key: `${f.id}-v${f.current_version}${viewOnly ? '-view' : ''}`,
       title: f.name,
       url: `${SELF_FOR_DS}/api/files/${f.id}/raw?v=${f.current_version}&t=${dlToken(f.id)}`,
-      permissions: { edit: true, download: true },
+      permissions: { edit: !viewOnly, download: true },
     },
     documentType: EXT_TYPE[ext] || 'word',
     editorConfig: {
       lang: 'zh-CN',
-      callbackUrl: `${SELF_FOR_DS}/onlyoffice/callback/${f.id}?t=${dlToken(f.id)}`,
-      user: { id: String(user.uid), name: user.email.split('@')[0] },
+      mode: viewOnly ? 'view' : 'edit',
+      ...(viewOnly ? {} : { callbackUrl: `${SELF_FOR_DS}/onlyoffice/callback/${f.id}?t=${dlToken(f.id)}` }),
+      user: viewOnly ? { id: 'guest', name: '访客' } : { id: String(user.uid), name: user.email.split('@')[0] },
       customization: { autosave: true, forcesave: true, compactHeader: true },
     },
   };
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${f.name} — Officeline</title>
-<style>html,body,#editor{margin:0;padding:0;height:100%;width:100%;overflow:hidden}
-#dsErr{display:none;font-family:-apple-system,"PingFang SC",sans-serif;max-width:520px;margin:80px auto;line-height:1.8;color:#1c2330}
-#dsErr code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head>
-<body><div id="editor"></div>
-<div id="dsErr"><h2>编辑服务未启动</h2>
-<p>无法连接文档编辑服务(Document Server)。请在终端执行:</p>
-<p><code>colima start && docker start officeline-ds</code></p>
-<p>首次安装或容器不存在时运行 <code>deploy/setup-ds.sh</code>,然后刷新本页。</p></div>
+  const aiBlock = viewOnly ? '' : `
 <button id="aiFab" title="AI 助手">✦ AI</button>
 <div id="aiPanel">
   <div class="aiRow"><b>AI 助手</b><span id="aiClose" style="cursor:pointer;color:#6b7280">✕</span></div>
@@ -216,22 +211,7 @@ function editorHtml(f, user) {
   <div id="aiRes"></div>
   <button id="aiCopy" style="display:none">复制结果</button>
 </div>
-<style>
-#aiFab{position:fixed;right:18px;bottom:18px;z-index:99;border:0;border-radius:22px;padding:10px 18px;
-  background:#2563eb;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
-#aiPanel{display:none;position:fixed;right:18px;bottom:70px;z-index:99;width:340px;background:#fff;
-  border:1px solid #e5e7eb;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.15);
-  font-family:-apple-system,"PingFang SC",sans-serif;font-size:14px}
-#aiPanel .aiRow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
-#aiPanel textarea,#aiPanel select{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
-#aiPanel select{width:auto;flex:1}
-#aiPanel button{border:0;border-radius:8px;padding:7px 14px;background:#2563eb;color:#fff;cursor:pointer}
-#aiRes{white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:10px;margin-top:8px;max-height:220px;overflow:auto;font-size:13px}
-</style>
-<script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"
-  onerror="document.getElementById('dsErr').style.display='block'"></script>
 <script>
-if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));
 (function(){
   const $ = (id) => document.getElementById(id);
   const token = new URL(location.href).searchParams.get('token');
@@ -250,7 +230,34 @@ if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringi
   };
   $('aiCopy').onclick = () => navigator.clipboard.writeText($('aiRes').textContent);
 })();
+<\/script>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${f.name} — Officeline</title>
+<style>html,body,#editor{margin:0;padding:0;height:100%;width:100%;overflow:hidden}
+#dsErr{display:none;font-family:-apple-system,"PingFang SC",sans-serif;max-width:520px;margin:80px auto;line-height:1.8;color:#1c2330}
+#dsErr code{background:#f3f4f6;padding:2px 6px;border-radius:4px}</style></head>
+<body><div id="editor"></div>
+<div id="dsErr"><h2>编辑服务未启动</h2>
+<p>无法连接文档编辑服务(Document Server)。请在终端执行:</p>
+<p><code>colima start && docker start officeline-ds</code></p>
+<p>首次安装或容器不存在时运行 <code>deploy/setup-ds.sh</code>,然后刷新本页。</p></div>
+<style>
+#aiFab{position:fixed;right:18px;bottom:18px;z-index:99;border:0;border-radius:22px;padding:10px 18px;
+  background:#2563eb;color:#fff;font-size:14px;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+#aiPanel{display:none;position:fixed;right:18px;bottom:70px;z-index:99;width:340px;background:#fff;
+  border:1px solid #e5e7eb;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.15);
+  font-family:-apple-system,"PingFang SC",sans-serif;font-size:14px}
+#aiPanel .aiRow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+#aiPanel textarea,#aiPanel select{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:8px;font-family:inherit;font-size:13px}
+#aiPanel select{width:auto;flex:1}
+#aiPanel button{border:0;border-radius:8px;padding:7px 14px;background:#2563eb;color:#fff;cursor:pointer}
+#aiRes{white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:10px;margin-top:8px;max-height:220px;overflow:auto;font-size:13px}
+</style>
+<script src="${DS_PUBLIC}/web-apps/apps/api/documents/api.js"
+  onerror="document.getElementById('dsErr').style.display='block'"></script>
+<script>
+if (window.DocsAPI) new DocsAPI.DocEditor("editor", Object.assign(${JSON.stringify(cfg)}, {width:"100%",height:"100%"}));
 </script>
+${aiBlock}
 </body></html>`;
 }
 
@@ -356,6 +363,31 @@ route('POST', /^\/api\/files\/([0-9a-f]+)\/restore$/, async (req, res, m) => {
   if (!buf) return json(res, 404, { error: '版本不存在' });
   const v = await saveVersion(f.id, buf);
   json(res, 200, { ok: true, version: v });
+});
+
+// 只读分享链接:开启(幂等)/关闭
+route('POST', /^\/api\/files\/([0-9a-f]+)\/share$/, (req, res, m) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  const f = db.prepare('SELECT * FROM files WHERE id=? AND owner_id=? AND deleted=0').get(m[1], u.uid);
+  if (!f) return json(res, 404, { error: '文件不存在' });
+  let t = f.share_token;
+  if (!t) {
+    t = crypto.randomBytes(12).toString('base64url');
+    db.prepare('UPDATE files SET share_token=? WHERE id=?').run(t, f.id);
+  }
+  json(res, 200, { url: `/s/${t}` });
+});
+route('DELETE', /^\/api\/files\/([0-9a-f]+)\/share$/, (req, res, m) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  db.prepare('UPDATE files SET share_token=NULL WHERE id=? AND owner_id=?').run(m[1], u.uid);
+  json(res, 200, { ok: true });
+});
+// 访客只读页
+route('GET', /^\/s\/([A-Za-z0-9_-]+)$/, (req, res, m) => {
+  const f = db.prepare('SELECT * FROM files WHERE share_token=? AND deleted=0').get(m[1]);
+  if (!f) return json(res, 404, { error: '分享不存在或已关闭' });
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  res.end(editorHtml(f, null, true));
 });
 
 route('DELETE', /^\/api\/files\/([0-9a-f]+)$/, (req, res, m) => {
