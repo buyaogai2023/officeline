@@ -17,9 +17,16 @@ function ping() {
 
 async function ensureServer() {
   if (await ping()) return; // 已有服务(开发时手动启动)则复用
-  const serverEntry = path.join(__dirname, '..', 'server', 'src', 'server.js');
+  // 开发时用仓库里的 server;打包后 server 在 resources 里(见 package.json extraResources)
+  const serverEntry = app.isPackaged
+    ? path.join(process.resourcesPath, 'server', 'src', 'server.js')
+    : path.join(__dirname, '..', 'server', 'src', 'server.js');
   serverProc = spawn(process.execPath, [serverEntry], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      OFFICELINE_DATA: path.join(app.getPath('userData'), 'data'),
+    },
     stdio: 'ignore',
   });
   for (let i = 0; i < 40; i++) {

@@ -20,7 +20,8 @@ const AI_MODEL = process.env.OFFICELINE_AI_MODEL || 'deepseek-chat';
 const AI_KEY = process.env.OFFICELINE_AI_KEY || '';
 
 const ROOT = path.join(__dirname, '..');
-const DATA = path.join(ROOT, 'data');
+// 打包版由桌面壳传入用户数据目录,避免写进 .app 包(更新即丢)
+const DATA = process.env.OFFICELINE_DATA || path.join(ROOT, 'data');
 const FILES_DIR = path.join(DATA, 'files');
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const TPL_DIR = path.join(ROOT, 'templates');

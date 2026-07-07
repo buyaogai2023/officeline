@@ -30,6 +30,12 @@ node server/src/server.js        # http://localhost:9130
 
 # 3. 桌面版(或直接用浏览器打开 9130)
 cd desktop && npm start
+
+# 4. 冒烟测试(9 项全链路)
+./scripts/smoke.sh
+
+# 5. 打 macOS 安装包(免签名 arm64 DMG,产物在 desktop/dist-app/)
+cd desktop && npm run dist
 ```
 
 ## 已实现
