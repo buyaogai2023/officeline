@@ -36,4 +36,20 @@ for app in documenteditor spreadsheeteditor presentationeditor; do
   sudo docker exec -i "$C" sh -c "sed -i '/OFFICELINE-BRAND/d' '$F'; printf '\n/*OFFICELINE-BRAND*/%s' \"\$(cat)\" >> '$F'; gzip -kf '$F'" <<<"$CSS_OVERRIDE"
 done
 
+# 「关于」面板 publisher 信息(链接/邮箱/电话/显示名)换成自有品牌
+# 注意:只改 UI 显示值;文件头的版权声明依 AGPL 保留不动
+sudo docker exec -i "$C" python3 - <<PY
+import re, gzip
+f = "$BASE/common/main/lib/view/About.js"
+s = open(f, encoding="utf-8").read()
+s = re.sub(r"publishername:\s*'[^']*'", "publishername: 'Officeline'", s)
+s = re.sub(r"publisherurl:\s*'[^']*'", "publisherurl: 'https://app.softeah.com'", s)
+s = re.sub(r"supportemail:\s*'[^']*'", "supportemail: 'support@softeah.com'", s)
+s = re.sub(r"phonenum:\s*'[^']*'", "phonenum: ''", s)
+s = re.sub(r"publisheraddr:\s*'[^']*'", "publisheraddr: ''", s)
+open(f, "w", encoding="utf-8").write(s)
+open(f + ".gz", "wb").write(gzip.compress(s.encode()))
+print("About.js publisher 已替换")
+PY
+
 echo "✅ DS 品牌补丁完成(浏览器强刷或换个文档可见)"
