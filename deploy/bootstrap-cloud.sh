@@ -72,6 +72,8 @@ json.dump(j, open(p, "w"), indent=2)
 '
 sudo $COMPOSE exec -T ds supervisorctl restart ds:converter ds:docservice
 until curl -sf http://localhost:8080/healthcheck >/dev/null 2>&1; do sleep 3; done
+# 替换编辑器内引擎品牌为 Officeline(社区版忽略 customization.logo)
+bash patch-ds-brand.sh deploy-ds-1 || echo '(品牌补丁失败,不影响功能)'
 
 echo '==> 6/6 放行本机防火墙(甲骨文 Ubuntu 镜像自带 iptables 规则,默认只放 22)'
 for port in 9130 8080 80 443; do
