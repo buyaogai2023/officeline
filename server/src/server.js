@@ -654,7 +654,7 @@ route('GET', /^\/editor\/([0-9a-f]+)$/, (req, res, m) => {
 // AI 助手
 route('POST', /^\/api\/ai$/, async (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
-  const { action, text } = JSON.parse(await readBody(req, 1e6));
+  const { action, text, lang } = JSON.parse(await readBody(req, 1e6));
   if (!text || !text.trim()) return json(res, 400, { error: '内容为空' });
   const plan = planOf(u.uid);
   const quota = (PLANS[plan] || PLANS.free).aiQuota;
@@ -667,7 +667,7 @@ route('POST', /^\/api\/ai$/, async (req, res) => {
     }
   }
   try {
-    let result = await aiChat(action, text.slice(0, 20000));
+    let result = await aiChat(action, text.slice(0, 20000), lang === 'en' ? 'en' : 'zh');
     if (sample) {
       bumpAi(u.uid, curWeek());
       const left = AI_SAMPLES_PER_WEEK - aiCount(u.uid, curWeek());
