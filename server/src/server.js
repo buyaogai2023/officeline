@@ -700,7 +700,7 @@ function serveStatic(req, res) {
   if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404); return res.end('not found');
   }
-  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
+  res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'access-control-allow-origin': '*' });
   fs.createReadStream(file).pipe(res);
 }
 
