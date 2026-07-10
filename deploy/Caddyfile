@@ -1,0 +1,13 @@
+# Officeline HTTPS 入口(compose 的 https profile 启用)
+# 两个子域各反代一个服务;证书由 Caddy 自动向 Let's Encrypt 申请并续期。
+# 前提:APP_DOMAIN / DS_DOMAIN 的 DNS A 记录已指向本服务器公网 IP,且 80/443 已放行。
+
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy app:9130
+}
+
+{$DS_DOMAIN} {
+	# OnlyOffice Document Server(含 websocket,Caddy 自动透传)
+	reverse_proxy ds:80
+}

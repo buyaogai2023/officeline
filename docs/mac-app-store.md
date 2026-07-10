@@ -3,8 +3,11 @@
 Mac 版是**你云端服务的原生外壳**:登录、文件、OnlyOffice 编辑、AI 全部在服务器端;
 Mac App 只负责加载云端页面 + 通过 StoreKit 完成苹果内购。付费只走苹果,不需要商户号。
 
-> 前置:云服务必须先上线(域名 + HTTPS)。App 默认地址在 `desktop/main.js` 的 `CLOUD_URL`,
-> 上线后改成你的域名(如 `https://app.你的域名`)。开发时用 `OFFICELINE_URL=http://localhost:9130 npm start` 指向本地 server。
+> 前置:云服务必须先上线(域名 + HTTPS)。部署机上执行
+> `OFFICELINE_DOMAIN=你的域名.com bash bootstrap-cloud.sh` 即自动配 Caddy + Let's Encrypt
+> (需先在域名商加 `app`、`ds` 两条 A 记录指向服务器 IP)。
+> App 默认地址在 `desktop/main.js` 的 `CLOUD_URL`,上线后改成 `https://app.你的域名`。
+> 开发时用 `OFFICELINE_URL=http://localhost:9130 npm start` 指向本地 server。
 
 ## 架构与代码位置
 

@@ -4,8 +4,25 @@
 #   1. cp env.cloud.example .env && 编辑(至少改 DS_PUBLIC 为服务器公网 IP)
 #   2. docker compose -f docker-compose.cloud.yml up -d
 #   3. DS 就绪后打私网回访补丁(见 bootstrap-cloud.sh 第 5 步,缺它保存文档报错 -4)
-# 域名 + HTTPS:用 Caddy/Nginx 反代 9130 与 8080 两个入口,然后把 DS_PUBLIC 改成 https 地址
+# 域名 + HTTPS:.env 里填 APP_DOMAIN/DS_DOMAIN 并设 COMPOSE_PROFILES=https,
+#   caddy 服务会自动签发 Let's Encrypt 证书(DS_PUBLIC 同步改成 https://$DS_DOMAIN)
 services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["https"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN:-}
+      - DS_DOMAIN=${DS_DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+
   ds:
     image: onlyoffice/documentserver:latest   # 多架构镜像,ARM64(甲骨文 Ampere A1)可直接用
     restart: unless-stopped
@@ -55,3 +72,5 @@ volumes:
   ds-data:
   ds-log:
   app-data:
+  caddy-data:
+  caddy-config:
