@@ -57,8 +57,10 @@ services:
       - OFFICELINE_DS_JWT=${DS_JWT_SECRET}
       # 浏览器可达地址(编辑器自有品牌 logo 需要绝对 URL;域名模式自动生效)
       - OFFICELINE_PUBLIC_URL=${APP_DOMAIN:+https://${APP_DOMAIN}}
-      # AI:留空为演示模式,填 DeepSeek key 后 docker compose restart app 生效
+      # AI:留空为演示模式;任意 OpenAI 兼容服务(DeepSeek/Gemini/智谱)改 .env 三个变量即可
       - OFFICELINE_AI_KEY=${AI_KEY:-}
+      - OFFICELINE_AI_BASE=${AI_BASE:-https://api.deepseek.com}
+      - OFFICELINE_AI_MODEL=${AI_MODEL:-deepseek-chat}
       # Apple 内购:App Store Connect 的共享密钥 + 订阅产品 ID(见 docs/mac-app-store.md)
       - OFFICELINE_IAP_SHARED_SECRET=${IAP_SHARED_SECRET:-}
       - OFFICELINE_IAP_BUNDLE_ID=${IAP_BUNDLE_ID:-com.officeline.app}
