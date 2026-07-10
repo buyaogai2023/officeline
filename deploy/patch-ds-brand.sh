@@ -30,7 +30,7 @@ wordmark 245 45 34 '#ffffff' | put "$BASE/common/main/resources/img/about/logo-w
 # CSS 级覆盖:三个编辑器的 header 品牌背景图直接指向 app 域的自有 logo
 # (绕开 SVG 文件在各级缓存中的旧副本;幂等:重复执行不重复追加)
 APP_URL=${OFFICELINE_PUBLIC_URL:-https://app.softeah.com}
-CSS_OVERRIDE=".header-logo i{background-image:url('$APP_URL/logo-dark.png') !important;background-size:contain !important;background-position:center left !important}.theme-dark .header-logo i,.theme-contrast-dark .header-logo i,.theme-night .header-logo i{background-image:url('$APP_URL/logo-light.png') !important}.header-logo,.header-logo i{pointer-events:none !important;cursor:default !important}"
+CSS_OVERRIDE="#header-logo i{background-image:url('$APP_URL/logo-dark.png') !important;background-size:contain !important;background-position:center left !important}.theme-dark #header-logo i,.theme-contrast-dark #header-logo i,.theme-night #header-logo i{background-image:url('$APP_URL/logo-light.png') !important}#header-logo,#header-logo i,section.logo{pointer-events:none !important;cursor:default !important}"
 for app in documenteditor spreadsheeteditor presentationeditor; do
   F="$BASE/$app/main/resources/css/app.css"
   sudo docker exec -i "$C" sh -c "sed -i '/OFFICELINE-BRAND/d' '$F'; printf '\n/*OFFICELINE-BRAND*/%s' \"\$(cat)\" >> '$F'; gzip -kf '$F'" <<<"$CSS_OVERRIDE"
@@ -50,6 +50,12 @@ s = re.sub(r"publisheraddr:\s*'[^']*'", "publisheraddr: ''", s)
 open(f, "w", encoding="utf-8").write(s)
 open(f + ".gz", "wb").write(gzip.compress(s.encode()))
 print("About.js publisher 已替换")
+# Header.js:logo 点击的写死兜底 URL 改为自有站点(CSS 已禁点击,此为双保险)
+h = "$BASE/common/main/lib/view/Header.js"
+s = open(h, encoding="utf-8").read().replace("'https://www.onlyoffice.com'", "'$APP_URL'")
+open(h, "w", encoding="utf-8").write(s)
+open(h + ".gz", "wb").write(gzip.compress(s.encode()))
+print("Header.js 兜底链接已替换")
 PY
 
 echo "✅ DS 品牌补丁完成(浏览器强刷或换个文档可见)"
