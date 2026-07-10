@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="344" height="80" viewBox="0 0 344 80">
+  <!-- 浅色主题用(深色文字) -->
+  <rect x="8" y="16" width="48" height="48" rx="12" fill="#2563eb"/>
+  <circle cx="32" cy="40" r="12" fill="none" stroke="#fff" stroke-width="6"/>
+  <text x="68" y="53" font-family="-apple-system,'PingFang SC','Segoe UI',sans-serif" font-size="34" font-weight="700" fill="#1e293b">Officeline</text>
+</svg>

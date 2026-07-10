@@ -19,6 +19,8 @@ const SELF_FOR_DS = process.env.OFFICELINE_SELF_FOR_DS || `http://host.docker.in
 // DS JWT(公网部署必开):与 Document Server 的 JWT_SECRET 一致;设置后编辑器配置签名、回调验签。
 // 不设(本地开发)则维持免签名,与 setup-ds.sh 的 JWT_ENABLED=false 配套。
 const DS_JWT = process.env.OFFICELINE_DS_JWT || '';
+// 本服务的浏览器可达地址(编辑器品牌 logo 用绝对 URL,因为编辑器 iframe 跑在 DS 域上)
+const PUBLIC_URL = (process.env.OFFICELINE_PUBLIC_URL || '').replace(/\/$/, '');
 // AI 配置:默认 DeepSeek(便宜),OpenAI 兼容协议,不设 key 时返回演示回复
 const AI_BASE = process.env.OFFICELINE_AI_BASE || 'https://api.deepseek.com';
 const AI_MODEL = process.env.OFFICELINE_AI_MODEL || 'deepseek-chat';
@@ -231,7 +233,7 @@ const AI_PROMPTS = {
 async function aiChat(action, text) {
   const sys = AI_PROMPTS[action] || '你是办公助手,请帮助用户处理以下内容:';
   if (!AI_KEY) {
-    return `【演示模式】未配置 AI 密钥。设置环境变量 OFFICELINE_AI_KEY(DeepSeek API Key,约 ¥1/百万token)后即为真实 AI 输出。\n\n请求类型:${action}\n输入长度:${text.length} 字`;
+    return `【演示模式】本实例未配置 AI 服务。管理员设置环境变量 OFFICELINE_AI_KEY 后即为真实 AI 输出。\n\n请求类型:${action}\n输入长度:${text.length} 字`;
   }
   const r = await fetch(`${AI_BASE}/chat/completions`, {
     method: 'POST',
@@ -260,7 +262,16 @@ function editorHtml(f, user, viewOnly = false) {
       mode: viewOnly ? 'view' : 'edit',
       ...(viewOnly ? {} : { callbackUrl: `${SELF_FOR_DS}/onlyoffice/callback/${f.id}?t=${dlToken(f.id)}` }),
       user: viewOnly ? { id: 'guest', name: '访客' } : { id: String(user.uid), name: user.email.split('@')[0] },
-      customization: { autosave: true, forcesave: true, compactHeader: true },
+      customization: {
+        autosave: true, forcesave: true, compactHeader: true,
+        // 去第三方品牌:换自有 logo、关反馈/帮助入口(引擎「关于」面板社区版无法关闭)
+        feedback: false, help: false,
+        ...(PUBLIC_URL ? { logo: {
+          image: `${PUBLIC_URL}/logo-dark.svg`,
+          imageDark: `${PUBLIC_URL}/logo-light.svg`,
+          url: PUBLIC_URL,
+        } } : {}),
+      },
     },
   };
   if (DS_JWT) cfg.token = jwtSign(cfg);
