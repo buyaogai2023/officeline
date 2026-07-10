@@ -8,6 +8,11 @@
 }
 
 {$DS_DOMAIN} {
-	# OnlyOffice Document Server(含 websocket,Caddy 自动透传)
+	# 访问一次即让浏览器清空本站全部缓存(品牌补丁后给老客户端用)
+	handle /clear-cache {
+		header Clear-Site-Data `"cache"`
+		respond "cache cleared, reload the editor" 200
+	}
+	# 文档引擎(含 websocket,Caddy 自动透传)
 	reverse_proxy ds:80
 }
