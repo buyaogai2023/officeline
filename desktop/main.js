@@ -5,8 +5,8 @@ const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('node:path');
 const storekit = require('./storekit');
 
-// 正式上线把默认地址改成你的域名;开发时用 OFFICELINE_URL=http://localhost:9130 指向本地 server。
-const CLOUD_URL = process.env.OFFICELINE_URL || 'https://app.officeline.cn';
+// 正式云端地址(softeah.com 在 GoDaddy);开发时用 OFFICELINE_URL=http://localhost:9130 指向本地 server。
+const CLOUD_URL = process.env.OFFICELINE_URL || 'https://app.softeah.com';
 
 function createWindow() {
   const win = new BrowserWindow({
