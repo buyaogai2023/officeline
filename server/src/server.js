@@ -267,8 +267,8 @@ function editorHtml(f, user, viewOnly = false) {
         // 去第三方品牌:换自有 logo、关反馈/帮助入口(引擎「关于」面板社区版无法关闭)
         feedback: false, help: false,
         ...(PUBLIC_URL ? { logo: {
-          image: `${PUBLIC_URL}/logo-dark.svg`,
-          imageDark: `${PUBLIC_URL}/logo-light.svg`,
+          image: `${PUBLIC_URL}/logo-dark.png`,
+          imageDark: `${PUBLIC_URL}/logo-light.png`,
           url: PUBLIC_URL,
         } } : {}),
       },
