@@ -135,7 +135,32 @@ function hashPass(pass, salt) {
   return crypto.scryptSync(pass, salt, 32).toString('hex');
 }
 
+// 服务端错误文案英译表(源码以中文为源;客户端带 x-lang: en 时自动转换)
+const ERR_EN = {
+  '邮箱或密码不合法(密码至少6位)': 'Invalid email or password (min 6 characters)',
+  '该邮箱已注册': 'This email is already registered',
+  '邮箱或密码错误': 'Incorrect email or password',
+  '未登录': 'Not signed in',
+  '服务端未配置 App Store 共享密钥': 'App Store shared secret not configured on server',
+  '请求体不合法': 'Invalid request body',
+  '缺少 receipt': 'Missing receipt',
+  '无法连接 App Store 验证服务': 'Could not reach App Store verification service',
+  '回执 bundle 不匹配': 'Receipt bundle mismatch',
+  '回执中没有匹配的订阅': 'No matching subscription in receipt',
+  '该订阅已绑定到其他账号': 'This subscription is linked to another account',
+  '本实例未开启演示升级;付费请通过 Mac App Store 内购': 'Demo upgrade disabled; please subscribe via the Mac App Store',
+  '类型不支持': 'Unsupported type',
+  '仅支持 docx/xlsx/pptx': 'Only docx/xlsx/pptx are supported',
+  '云空间已满,请升级订阅': 'Cloud storage is full — please upgrade',
+  '文件不存在': 'File not found',
+  '无权限': 'Permission denied',
+  '版本不存在': 'Version not found',
+  '分享不存在或已关闭': 'Share link not found or disabled',
+  '文件名不能为空': 'File name cannot be empty',
+  '内容不能为空': 'Text cannot be empty',
+};
 function json(res, code, obj) {
+  if (res.olLang === 'en' && obj && obj.error && ERR_EN[obj.error]) obj = { ...obj, error: ERR_EN[obj.error] };
   const body = JSON.stringify(obj);
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
   res.end(body);
@@ -225,13 +250,24 @@ async function createFile(uid, name, buf) {
 
 // ---------- AI ----------
 const AI_PROMPTS = {
-  polish: '你是专业中文编辑。请润色下面的文字,保持原意,输出润色后的全文,不要解释:',
-  summarize: '请用简洁的中文总结下面的内容,输出要点列表:',
-  translate: '请将下面的内容翻译成英文(若已是英文则翻译成中文),只输出译文:',
-  formula: '你是电子表格专家。用户描述一个计算需求,请给出可直接粘贴的公式(以=开头)并用一句话说明。需求:',
+  zh: {
+    polish: '你是专业中文编辑。请润色下面的文字,保持原意,输出润色后的全文,不要解释:',
+    summarize: '请用简洁的中文总结下面的内容,输出要点列表:',
+    translate: '请将下面的内容翻译成英文(若已是英文则翻译成中文),只输出译文:',
+    formula: '你是电子表格专家。用户描述一个计算需求,请给出可直接粘贴的公式(以=开头)并用一句话说明。需求:',
+    fallback: '你是办公助手,请帮助用户处理以下内容:',
+  },
+  en: {
+    polish: 'You are a professional editor. Polish the following text, keep its meaning, and output only the improved full text:',
+    summarize: 'Summarize the following content concisely as a bullet list, in English:',
+    translate: 'Translate the following into Chinese (or into English if it is already Chinese). Output only the translation:',
+    formula: 'You are a spreadsheet expert. The user describes a calculation; reply with a paste-ready formula (starting with =) plus a one-sentence explanation. Request:',
+    fallback: 'You are an office assistant. Help the user with the following content:',
+  },
 };
-async function aiChat(action, text) {
-  const sys = AI_PROMPTS[action] || '你是办公助手,请帮助用户处理以下内容:';
+async function aiChat(action, text, lang = 'zh') {
+  const P = AI_PROMPTS[lang] || AI_PROMPTS.zh;
+  const sys = P[action] || P.fallback;
   if (!AI_KEY) {
     return `【演示模式】本实例未配置 AI 服务。管理员设置环境变量 OFFICELINE_AI_KEY 后即为真实 AI 输出。\n\n请求类型:${action}\n输入长度:${text.length} 字`;
   }
@@ -246,7 +282,8 @@ async function aiChat(action, text) {
 }
 
 // ---------- 编辑器页面 ----------
-function editorHtml(f, user, viewOnly = false) {
+function editorHtml(f, user, viewOnly = false, lang = 'zh') {
+  const en = lang === 'en';
   const ext = path.extname(f.name).slice(1);
   const cfg = {
     document: {
@@ -258,7 +295,7 @@ function editorHtml(f, user, viewOnly = false) {
     },
     documentType: EXT_TYPE[ext] || 'word',
     editorConfig: {
-      lang: 'zh-CN',
+      lang: en ? 'en' : 'zh-CN',
       mode: viewOnly ? 'view' : 'edit',
       ...(viewOnly ? {} : { callbackUrl: `${SELF_FOR_DS}/onlyoffice/callback/${f.id}?t=${dlToken(f.id)}` }),
       user: viewOnly ? { id: 'guest', name: '访客' } : { id: String(user.uid), name: user.email.split('@')[0] },
@@ -279,9 +316,9 @@ function editorHtml(f, user, viewOnly = false) {
   const guestCta = !viewOnly ? '' : `
 <div id="olCta">
   <span id="olCtaX" title="关闭">✕</span>
-  <div class="olCtaTitle">该文档通过 <b>Officeline</b> 分享</div>
-  <div class="olCtaSub">开源云办公 · 免费 5GB 云空间 + AI 助手</div>
-  <a href="/?from=share" target="_blank" rel="noopener">免费创建我的文档</a>
+  <div class="olCtaTitle">${en ? 'Shared via <b>Officeline</b>' : '该文档通过 <b>Officeline</b> 分享'}</div>
+  <div class="olCtaSub">${en ? 'Open-source cloud office · Free 5 GB + AI assistant' : '开源云办公 · 免费 5GB 云空间 + AI 助手'}</div>
+  <a href="/?from=share" target="_blank" rel="noopener">${en ? 'Create my free docs' : '免费创建我的文档'}</a>
 </div>
 <style>
 #olCta{position:fixed;right:18px;bottom:18px;z-index:99;width:250px;background:var(--ol-surface);color:var(--ol-fg);
@@ -541,7 +578,7 @@ route('GET', /^\/s\/([A-Za-z0-9_-]+)$/, (req, res, m) => {
   const f = db.prepare('SELECT * FROM files WHERE share_token=? AND deleted=0').get(m[1]);
   if (!f) return json(res, 404, { error: '分享不存在或已关闭' });
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  res.end(editorHtml(f, null, true));
+  res.end(editorHtml(f, null, true, /^en\b/i.test(String(req.headers['accept-language'] || '')) ? 'en' : 'zh'));
 });
 
 route('DELETE', /^\/api\/files\/([0-9a-f]+)$/, (req, res, m) => {
@@ -611,7 +648,7 @@ route('GET', /^\/editor\/([0-9a-f]+)$/, (req, res, m) => {
   const f = db.prepare('SELECT * FROM files WHERE id=? AND owner_id=? AND deleted=0').get(m[1], u.uid);
   if (!f) return json(res, 404, { error: '文件不存在' });
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  res.end(editorHtml(f, u));
+  res.end(editorHtml(f, u, false, new URL(req.url, 'http://x').searchParams.get('lang') === 'en' ? 'en' : 'zh'));
 });
 
 // AI 助手
@@ -664,6 +701,7 @@ function serveStatic(req, res) {
 
 http.createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://x').pathname;
+  res.olLang = (req.headers['x-lang'] === 'en' || (!req.headers['x-lang'] && /^en\b/i.test(String(req.headers['accept-language'] || '')))) ? 'en' : 'zh';
   try {
     for (const r of routes) {
       const m = r.method === req.method && pathname.match(r.pattern);

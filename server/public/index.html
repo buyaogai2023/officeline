@@ -238,6 +238,7 @@ dialog[open] { animation: rise .22s var(--ease); }
   <div class="user-chip">
     <span id="who"></span>
     <span id="planPill" class="pill hidden"></span>
+    <button id="langBtn" class="btn btn-quiet" aria-label="Switch language">EN</button>
     <button id="logoutBtn" class="btn btn-quiet hidden" aria-label="退出登录">退出</button>
   </div>
 </header>
@@ -405,16 +406,91 @@ dialog[open] { animation: rise .22s var(--ease); }
 
 <script>
 const $ = (id) => document.getElementById(id);
+
+/* ---------- i18n:中文为源,英文查表;LANG 持久化,默认跟随系统 ---------- */
+let LANG = localStorage.getItem('ol_lang') || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+const EN = {
+  '退出': 'Sign out', '退出登录': 'Sign out',
+  '登录 Officeline': 'Sign in to Officeline', '注册 Officeline': 'Create your Officeline account',
+  '文档、表格、演示,随时同步到云端': 'Docs, sheets & slides — always synced to the cloud',
+  '邮箱': 'Email', '密码': 'Password', '至少 6 位': 'At least 6 characters',
+  '请输入有效的邮箱地址': 'Please enter a valid email address',
+  '密码至少 6 位': 'At least 6 characters', '密码至少需要 6 位': 'Password must be at least 6 characters',
+  '显示密码': 'Show password', '隐藏密码': 'Hide password',
+  '登 录': 'Sign in', '创建账号': 'Create account',
+  '没有账号?免费注册,送 5GB 云空间': "No account? Sign up free — 5 GB included",
+  '已有账号?直接登录': 'Already have an account? Sign in',
+  '登录中…': 'Signing in…', '创建中…': 'Creating…',
+  '云空间': 'Cloud storage', '升级专业版 ¥19/月': 'Upgrade to Pro ¥19/mo',
+  '新建': 'New', '文档': 'Document', '表格': 'Spreadsheet', '演示': 'Presentation',
+  '上传': 'Upload', '搜索文件…': 'Search files…', '搜索文件': 'Search files', '回收站': 'Trash',
+  '名称': 'Name', '大小': 'Size', '更新时间': 'Modified',
+  '还没有文件,创建第一份云文档吧': 'No files yet — create your first document',
+  '新建文档': 'New document', '新建表格': 'New spreadsheet', '新建演示': 'New presentation',
+  'AI 助手': 'AI Assistant', '润色文字': 'Polish text', '总结要点': 'Summarize',
+  '中英互译': 'Translate (中↔EN)', '生成表格公式': 'Generate formula', '运行': 'Run',
+  '粘贴文字,或描述你要的公式,例如:统计 B 列大于 100 的行数': 'Paste text, or describe a formula, e.g. count rows where column B > 100',
+  '思考中…': 'Thinking…', '版本历史': 'Version history', '当前': 'Current', '恢复此版本': 'Restore this version',
+  '文件名': 'File name', '取消': 'Cancel', '创建': 'Create', '保存': 'Save', '重命名': 'Rename',
+  '打开': 'Open', '分享': 'Share', '删除': 'Delete', '彻底删除': 'Delete forever',
+  '已分享': 'Shared', '已开启只读分享': 'Read-only sharing is on',
+  '复制': 'Copy', '关闭分享': 'Stop sharing', '完成': 'Done', '关闭': 'Close',
+  '任何拿到链接的人都可以<b style="color:var(--fg);">只读查看</b>此文件,无需登录。':
+    'Anyone with the link can <b style="color:var(--fg);">view (read-only)</b> this file, no sign-in needed.',
+  '删除文件': 'Delete file', '恢复': 'Restore', '回收站是空的': 'Trash is empty',
+  '免费版': 'Free', '专业版': 'Pro',
+  '处理中…': 'Working…', '已创建': 'Created', '已重命名': 'Renamed', '上传成功': 'Uploaded',
+  '链接已复制': 'Link copied', '已关闭分享,旧链接立即失效': 'Sharing stopped — old links no longer work',
+  '已恢复到文件列表': 'Restored to your files', '已彻底删除,空间已释放': 'Permanently deleted — space freed',
+  '已移入回收站': 'Moved to trash', '已恢复为新版本': 'Restored as a new version',
+  '已升级专业版,感谢支持!': 'Upgraded to Pro — thank you!', '订阅已记录': 'Subscription recorded',
+  '登录已过期,请重新登录': 'Session expired, please sign in again',
+  'Officeline 是自由软件(AGPL-3.0)·': 'Officeline is free software (AGPL-3.0) ·',
+  '获取源代码': 'Source code',
+  '未命名文档': 'Untitled document', '未命名表格': 'Untitled spreadsheet', '未命名演示': 'Untitled presentation',
+};
+const tr = (s) => LANG === 'en' ? (EN[s] || s) : s;
+
+function translatePage() {
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  $('langBtn').textContent = LANG === 'en' ? '中文' : 'EN';
+  if (LANG !== 'en') return;
+  document.title = 'Officeline — Cloud Docs';
+  // 静态文本:遍历常见文本节点与属性,命中字典即翻译
+  const attrTargets = ['placeholder', 'aria-label', 'title'];
+  document.querySelectorAll('body *').forEach(el => {
+    for (const a of attrTargets) {
+      const v = el.getAttribute && el.getAttribute(a);
+      if (v && EN[v]) el.setAttribute(a, EN[v]);
+    }
+    for (const n of el.childNodes) {
+      if (n.nodeType === 3) {
+        const t = n.textContent.trim();
+        if (t && EN[t]) n.textContent = n.textContent.replace(t, EN[t]);
+      }
+    }
+  });
+  // 个别整段 HTML
+  const shareTip = document.querySelector('#shareDlg .dlg-body p');
+  if (shareTip) shareTip.innerHTML = EN['任何拿到链接的人都可以<b style="color:var(--fg);">只读查看</b>此文件,无需登录。'];
+}
+
+$('langBtn') && ($('langBtn').onclick = () => {
+  localStorage.setItem('ol_lang', LANG === 'en' ? 'zh' : 'en');
+  location.reload();
+});
+
 const urlTok = new URLSearchParams(location.search).get('token');
 if (urlTok) { localStorage.setItem('ol_token', urlTok); history.replaceState(null, '', location.pathname); }
 let token = localStorage.getItem('ol_token') || '';
 let isRegister = false, curFileId = null, pendingDel = null;
 
 const fmtSize = (n) => n > 1048576 ? (n/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(n/1024))+' KB';
-const fmtTime = (t) => new Date(t).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const fmtTime = (t) => new Date(t).toLocaleString(LANG === 'en' ? 'en-US' : 'zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
 const esc = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function toast(msg, ok = true) {
+  msg = tr(msg);
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = (ok
@@ -426,17 +502,17 @@ function toast(msg, ok = true) {
 }
 
 async function api(path, opts = {}) {
-  opts.headers = Object.assign({ authorization: 'Bearer ' + token }, opts.headers);
+  opts.headers = Object.assign({ authorization: 'Bearer ' + token, 'x-lang': LANG }, opts.headers);
   const r = await fetch(path, opts);
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) { logout(); throw new Error('登录已过期,请重新登录'); }
-  if (!r.ok) throw new Error(j.error || ('请求失败(' + r.status + ')'));
+  if (r.status === 401) { logout(); throw new Error(tr('登录已过期,请重新登录')); }
+  if (!r.ok) throw new Error(j.error || (LANG === 'en' ? 'Request failed (' + r.status + ')' : '请求失败(' + r.status + ')'));
   return j;
 }
 
 function setBusy(btn, busy, label) {
   if (busy) { btn.dataset.t = btn.innerHTML; btn.disabled = true;
-    btn.innerHTML = '<svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>' + (label || '处理中…');
+    btn.innerHTML = '<svg class="spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>' + tr(label || '处理中…');
   } else { btn.disabled = false; btn.innerHTML = btn.dataset.t; }
 }
 
@@ -451,9 +527,9 @@ $('logoutBtn').onclick = logout;
 
 $('authSwitch').onclick = (e) => {
   e.preventDefault(); isRegister = !isRegister;
-  $('authTitle').textContent = isRegister ? '注册 Officeline' : '登录 Officeline';
-  $('authBtn').textContent = isRegister ? '创建账号' : '登 录';
-  $('authSwitch').textContent = isRegister ? '已有账号?直接登录' : '没有账号?免费注册,送 5GB 云空间';
+  $('authTitle').textContent = tr(isRegister ? '注册 Officeline' : '登录 Officeline');
+  $('authBtn').textContent = tr(isRegister ? '创建账号' : '登 录');
+  $('authSwitch').textContent = tr(isRegister ? '已有账号?直接登录' : '没有账号?免费注册,送 5GB 云空间');
   $('password').autocomplete = isRegister ? 'new-password' : 'current-password';
 };
 
@@ -461,7 +537,7 @@ $('pwToggle').onclick = () => {
   const p = $('password'), show = p.type === 'password';
   p.type = show ? 'text' : 'password';
   $('eyeOn').classList.toggle('hidden', show); $('eyeOff').classList.toggle('hidden', !show);
-  $('pwToggle').setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+  $('pwToggle').setAttribute('aria-label', tr(show ? '隐藏密码' : '显示密码'));
 };
 
 $('authForm').onsubmit = async (e) => {
@@ -472,7 +548,7 @@ $('authForm').onsubmit = async (e) => {
   $('fEmail').classList.toggle('invalid', !(/.+@.+\..+/.test(email))); bad = bad || !(/.+@.+\..+/.test(email));
   $('fPass').classList.toggle('invalid', pass.length < 6); bad = bad || pass.length < 6;
   if (bad) return;
-  setBusy($('authBtn'), true, isRegister ? '创建中…' : '登录中…');
+  setBusy($('authBtn'), true, tr(isRegister ? '创建中…' : '登录中…'));
   try {
     const r = await fetch('/api/auth/' + (isRegister ? 'register' : 'login'), {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -494,14 +570,14 @@ async function enter() {
   $('logoutBtn').classList.remove('hidden');
   $('who').textContent = me.email;
   const pill = $('planPill'); pill.classList.remove('hidden');
-  pill.textContent = me.planName; pill.className = 'pill' + (me.plan === 'pro' ? ' pro' : '');
+  pill.textContent = tr(me.planName); pill.className = 'pill' + (me.plan === 'pro' ? ' pro' : '');
   $('upgradeBtn').style.display = me.plan === 'pro' ? 'none' : '';
   $('quotaUsed').textContent = fmtSize(me.used);
   $('quotaTotal').textContent = '/ ' + (me.quota/1073741824) + ' GB';
   const pct = Math.min(100, me.used/me.quota*100);
   $('meterBar').style.width = pct + '%';
   $('meter').classList.toggle('hot', pct > 85);
-  $('aiQuotaText').textContent = '本月 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
+  $('aiQuotaText').textContent = LANG === 'en' ? me.aiUsed + ' / ' + me.aiQuota + ' this month' : '本月 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
   syncAppleReceipt();
   await loadFiles();
 }
@@ -568,7 +644,7 @@ async function loadFiles() {
 function renderTrash(files) {
   $('empty').classList.add('hidden');
   if (!files.length) {
-    $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:36px;">回收站是空的</td></tr>';
+    $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:36px;">' + tr('回收站是空的') + '</td></tr>';
     return;
   }
   $('fileRows').innerHTML = files.map(f => {
@@ -578,10 +654,10 @@ function renderTrash(files) {
       <span class="file-icon ${ext}" style="filter:grayscale(1);opacity:.6;">${ICONS[ext] || ICONS.docx}</span>
       <span class="file-name" style="color:var(--fg-sub);">${esc(f.name)}</span></span></td>
     <td class="num col-hide">${fmtSize(f.size)}</td>
-    <td class="num col-hide">删除于 ${fmtTime(f.updated_at)}</td>
+    <td class="num col-hide">${LANG === 'en' ? 'Deleted ' : '删除于 '}${fmtTime(f.updated_at)}</td>
     <td><div class="row-actions" style="opacity:1;">
-      <button class="btn btn-quiet" onclick="undelete('${f.id}')" style="color:var(--accent);">恢复</button>
-      <button class="btn btn-quiet danger" onclick="askPurge('${f.id}', '${esc(f.name).replace(/'/g,'')}')">彻底删除</button>
+      <button class="btn btn-quiet" onclick="undelete('${f.id}')" style="color:var(--accent);">${tr('恢复')}</button>
+      <button class="btn btn-quiet danger" onclick="askPurge('${f.id}', '${esc(f.name).replace(/'/g,'')}')">${tr('彻底删除')}</button>
     </div></td></tr>`; }).join('');
 }
 
@@ -593,8 +669,8 @@ let pendingPurge = null;
 function askPurge(id, name) {
   pendingPurge = id;
   $('delName').textContent = name;
-  $('delBody').innerHTML = '彻底删除「<b>' + esc(name) + '</b>」吗?<b style="color:var(--danger);">此操作不可恢复</b>,所有历史版本将一并清除,并释放云空间。';
-  $('delConfirm').textContent = '彻底删除';
+  $('delBody').innerHTML = LANG === 'en' ? 'Permanently delete <b>' + esc(name) + '</b>? <b style="color:var(--danger);">This cannot be undone</b> — all versions will be erased and space freed.' : '彻底删除「<b>' + esc(name) + '</b>」吗?<b style="color:var(--danger);">此操作不可恢复</b>,所有历史版本将一并清除,并释放云空间。';
+  $('delConfirm').textContent = tr('彻底删除');
   delDlg.showModal();
 }
 function renderFiles() {
@@ -608,21 +684,21 @@ function renderFiles() {
           onkeydown="if(event.key==='Enter')openFile('${f.id}')">
       <span class="file-icon ${ext}">${ICONS[ext] || ICONS.docx}</span>
       <span class="file-name">${esc(f.name)}</span>
-      ${f.shared ? '<span class="pill" title="已开启只读分享">已分享</span>' : ''}</span></td>
+      ${f.shared ? '<span class="pill" title="' + tr('已开启只读分享') + '">' + tr('已分享') + '</span>' : ''}</span></td>
     <td class="num col-hide">${fmtSize(f.size)}</td>
     <td class="num col-hide">${fmtTime(f.updated_at)} · v${f.current_version}</td>
     <td><div class="row-actions">
-      <button class="btn btn-quiet" onclick="openFile('${f.id}')" aria-label="打开" title="打开">${ABTN.open}</button>
-      <button class="btn btn-quiet" onclick="askRename('${f.id}')" aria-label="重命名" title="重命名">${ABTN.rename}</button>
-      <button class="btn btn-quiet" onclick="shareFile('${f.id}')" aria-label="分享" title="分享">${ABTN.share}</button>
-      <button class="btn btn-quiet" onclick="showVersions('${f.id}')" aria-label="版本历史" title="版本历史">${ABTN.history}</button>
-      <button class="btn btn-quiet danger" onclick="askDelete('${f.id}', '${esc(f.name).replace(/'/g,'')}')" aria-label="删除" title="删除">${ABTN.del}</button>
+      <button class="btn btn-quiet" onclick="openFile('${f.id}')" aria-label="${tr('打开')}" title="${tr('打开')}">${ABTN.open}</button>
+      <button class="btn btn-quiet" onclick="askRename('${f.id}')" aria-label="${tr('重命名')}" title="${tr('重命名')}">${ABTN.rename}</button>
+      <button class="btn btn-quiet" onclick="shareFile('${f.id}')" aria-label="${tr('分享')}" title="${tr('分享')}">${ABTN.share}</button>
+      <button class="btn btn-quiet" onclick="showVersions('${f.id}')" aria-label="${tr('版本历史')}" title="${tr('版本历史')}">${ABTN.history}</button>
+      <button class="btn btn-quiet danger" onclick="askDelete('${f.id}', '${esc(f.name).replace(/'/g,'')}')" aria-label="${tr('删除')}" title="${tr('删除')}">${ABTN.del}</button>
     </div></td></tr>`; }).join('');
-  if (q && !files.length) $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:28px;">没有匹配「' + esc(q) + '」的文件</td></tr>';
+  if (q && !files.length) $('fileRows').innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--fg-sub);padding:28px;">' + (LANG === 'en' ? 'No files match "' + esc(q) + '"' : '没有匹配「' + esc(q) + '」的文件') + '</td></tr>';
 }
 $('search').oninput = renderFiles;
 
-function openFile(id) { window.open('/editor/' + id + '?token=' + encodeURIComponent(token), '_blank'); }
+function openFile(id) { window.open('/editor/' + id + '?token=' + encodeURIComponent(token) + '&lang=' + LANG, '_blank'); }
 
 /* 新建菜单 */
 const newBtn = $('newBtn'), newMenu = $('newMenu');
@@ -642,11 +718,11 @@ function openNameDlg(title, initial, okText, mode) {
 }
 function newDoc(type) {
   newMenu.classList.remove('open');
-  openNameDlg('新建' + TYPE_LABEL[type], '未命名' + TYPE_LABEL[type], '创建', { kind: 'new', type });
+  openNameDlg(tr('新建' + TYPE_LABEL[type]), tr('未命名' + TYPE_LABEL[type]), tr('创建'), { kind: 'new', type });
 }
 function askRename(id) {
   const f = allFiles.find(x => x.id === id); if (!f) return;
-  openNameDlg('重命名', f.name.replace(/\.[^.]+$/, ''), '保存', { kind: 'rename', id });
+  openNameDlg(tr('重命名'), f.name.replace(/\.[^.]+$/, ''), tr('保存'), { kind: 'rename', id });
 }
 $('nameForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -699,8 +775,8 @@ $('shareOff').onclick = async () => {
 function askDelete(id, name) {
   pendingDel = id; pendingPurge = null;
   $('delName').textContent = name;
-  $('delBody').innerHTML = '确定删除「<b>' + esc(name) + '</b>」吗?删除后可在回收站找回。';
-  $('delConfirm').textContent = '删除';
+  $('delBody').innerHTML = LANG === 'en' ? 'Delete <b>' + esc(name) + '</b>? You can restore it from Trash.' : '确定删除「<b>' + esc(name) + '</b>」吗?删除后可在回收站找回。';
+  $('delConfirm').textContent = tr('删除');
   delDlg.showModal();
 }
 $('delConfirm').onclick = async () => {
@@ -722,10 +798,10 @@ async function showVersions(id) {
   const { current, versions } = await api('/api/files/' + id + '/versions');
   $('verRows').innerHTML = versions.map(v => `<div class="ver-row">
     <b style="min-width:44px;">v${v.version}</b>
-    ${v.version===current ? '<span class="pill">当前</span>' : ''}
+    ${v.version===current ? '<span class="pill">' + tr('当前') + '</span>' : ''}
     <span class="meta">${fmtSize(v.size)} · ${fmtTime(v.created_at)}</span>
     <span style="flex:1"></span>
-    ${v.version===current ? '' : '<button class="btn btn-quiet" onclick="restore('+v.version+')">恢复此版本</button>'}
+    ${v.version===current ? '' : '<button class="btn btn-quiet" onclick="restore('+v.version+')">' + tr('恢复此版本') + '</button>'}
   </div>`).join('');
   verDlg.showModal();
 }
@@ -762,17 +838,18 @@ $('upgradeBtn').onclick = async () => {
 /* AI */
 $('aiBtn').onclick = async () => {
   const out = $('aiOut');
-  out.classList.add('show'); out.textContent = '思考中…';
+  out.classList.add('show'); out.textContent = tr('思考中…');
   setBusy($('aiBtn'), true, '');
   try {
     const r = await api('/api/ai', { method:'POST', headers:{'content-type':'application/json'},
-      body: JSON.stringify({ action: $('aiAction').value, text: $('aiIn').value }) });
+      body: JSON.stringify({ action: $('aiAction').value, text: $('aiIn').value, lang: LANG }) });
     out.textContent = r.result;
-    if (r.aiUsed != null) $('aiQuotaText').textContent = '本月 ' + r.aiUsed + ' / ' + r.aiQuota + ' 次';
-  } catch (e) { out.textContent = '出错:' + e.message; }
+    if (r.aiUsed != null) $('aiQuotaText').textContent = LANG === 'en' ? r.aiUsed + ' / ' + r.aiQuota + ' this month' : '本月 ' + r.aiUsed + ' / ' + r.aiQuota + ' 次';
+  } catch (e) { out.textContent = (LANG === 'en' ? 'Error: ' : '出错:') + e.message; }
   finally { setBusy($('aiBtn'), false); }
 };
 
+translatePage();
 if (token) enter().catch(logout);
 </script>
 </body>
