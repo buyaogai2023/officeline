@@ -35,7 +35,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "build/icon.icns"
     },
     "mas": {
       "category": "public.app-category.productivity",

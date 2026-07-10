@@ -681,6 +681,11 @@ route('POST', /^\/api\/ai$/, async (req, res) => {
   }
 });
 
+route('GET', /^\/privacy$/, (req, res) => {
+  res.writeHead(302, { location: '/privacy.html' });
+  res.end();
+});
+
 // AGPL 网络条款:向用户提供源码入口(发布后设 OFFICELINE_SOURCE_URL 指向公开仓库)
 route('GET', /^\/source$/, (req, res) => {
   res.writeHead(302, { location: process.env.OFFICELINE_SOURCE_URL || 'https://github.com/buyaogai2023/officeline' });

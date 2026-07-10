@@ -5,6 +5,11 @@
   <!-- Mac App Store 强制沙盒 -->
   <key>com.apple.security.app-sandbox</key>
   <true/>
+  <!-- MAS 提交要求:应用标识与团队标识 -->
+  <key>com.apple.application-identifier</key>
+  <string>36F7N59DVN.com.officeline.app</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>36F7N59DVN</string>
   <!-- 出站网络:访问你的云端服务 + App Store 内购校验 -->
   <key>com.apple.security.network.client</key>
   <true/>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+  <!-- macOS Big Sur 规范:1024 画布,824 圆角方居中(系统自动加投影) -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#g)"/>
+  <circle cx="512" cy="472" r="150" fill="none" stroke="#fff" stroke-width="74"/>
+  <rect x="332" y="700" width="360" height="52" rx="26" fill="#fff" opacity=".92"/>
+</svg>
