@@ -23,7 +23,6 @@
       "main.js",
       "preload.js",
       "storekit.js",
-      "native/**",
       "package.json"
     ],
     "mac": {
