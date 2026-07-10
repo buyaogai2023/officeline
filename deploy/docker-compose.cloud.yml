@@ -40,6 +40,10 @@ services:
       - OFFICELINE_DS_JWT=${DS_JWT_SECRET}
       # AI:留空为演示模式,填 DeepSeek key 后 docker compose restart app 生效
       - OFFICELINE_AI_KEY=${AI_KEY:-}
+      # Apple 内购:App Store Connect 的共享密钥 + 订阅产品 ID(见 docs/mac-app-store.md)
+      - OFFICELINE_IAP_SHARED_SECRET=${IAP_SHARED_SECRET:-}
+      - OFFICELINE_IAP_BUNDLE_ID=${IAP_BUNDLE_ID:-com.officeline.app}
+      - OFFICELINE_IAP_PRODUCTS=${IAP_PRODUCTS:-com.officeline.pro.monthly,com.officeline.pro.yearly}
       # 存储默认 local(落在 app-data 卷)。换 Cloudflare R2/S3 时取消注释并填 .env:
       # - OFFICELINE_STORAGE=s3
       # - OFFICELINE_S3_ENDPOINT=${S3_ENDPOINT}

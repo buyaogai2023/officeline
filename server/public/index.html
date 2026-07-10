@@ -503,7 +503,23 @@ async function enter() {
   $('meterBar').style.width = pct + '%';
   $('meter').classList.toggle('hot', pct > 85);
   $('aiQuotaText').textContent = '本月 ' + me.aiUsed + ' / ' + me.aiQuota + ' 次';
+  syncAppleReceipt();
   await loadFiles();
+}
+
+/* Mac App 启动后静默用当前收据续期(处理自动续订/过期同步),每会话一次 */
+let appleSynced = false;
+async function syncAppleReceipt() {
+  if (appleSynced || !(window.officeline && window.officeline.isMacApp)) return;
+  appleSynced = true;
+  try {
+    const { receipt } = await window.officeline.getReceipt();
+    if (!receipt) return;
+    await api('/api/billing/apple', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ receipt }),
+    });
+  } catch { /* 静默:无订阅或离线不打扰用户 */ }
 }
 
 const ICONS = {
@@ -721,10 +737,27 @@ async function restore(v) {
   } catch (e) { toast(e.message, false); }
 }
 
-/* 升级 */
+/* 升级:Mac App 内走苹果内购(StoreKit),自部署 Web 端走演示端点 */
+const PRO_PRODUCT_ID = 'com.officeline.pro.monthly';
 $('upgradeBtn').onclick = async () => {
-  try { const r = await api('/api/billing/upgrade', { method:'POST' }); toast(r.note); await enter(); }
-  catch (e) { toast(e.message, false); }
+  const btn = $('upgradeBtn');
+  setBusy(btn, true, '处理中…');
+  try {
+    if (window.officeline && window.officeline.isMacApp) {
+      const { receipt } = await window.officeline.purchase(PRO_PRODUCT_ID);
+      const r = await api('/api/billing/apple', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ receipt }),
+      });
+      toast(r.plan === 'pro' ? '已升级专业版,感谢支持!' : '订阅已记录');
+    } else {
+      const r = await api('/api/billing/upgrade', { method: 'POST' });
+      toast(r.note);
+    }
+    await enter();
+  } catch (e) { toast(e.message, false); }
+  finally { setBusy(btn, false); }
 };
 
 /* AI */

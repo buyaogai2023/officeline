@@ -1,60 +1,40 @@
-// Officeline 桌面壳:启动内置服务端并加载主界面
+// Officeline 桌面壳(Mac App Store 版):你的云服务的原生外壳 + 苹果内购
+// 沙盒安全:不 spawn 任何子进程,只加载云端 https 服务并注入 StoreKit 购买桥。
 'use strict';
-const { app, BrowserWindow, shell } = require('electron');
-const { spawn } = require('node:child_process');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('node:path');
-const http = require('node:http');
+const storekit = require('./storekit');
 
-const PORT = Number(process.env.OFFICELINE_PORT || 9130);
-const HOME = `http://localhost:${PORT}`;
-let serverProc = null;
+// 正式上线把默认地址改成你的域名;开发时用 OFFICELINE_URL=http://localhost:9130 指向本地 server。
+const CLOUD_URL = process.env.OFFICELINE_URL || 'https://app.officeline.cn';
 
-function ping() {
-  return new Promise((resolve) => {
-    http.get(HOME, (r) => { r.resume(); resolve(true); }).on('error', () => resolve(false));
-  });
-}
-
-async function ensureServer() {
-  if (await ping()) return; // 已有服务(开发时手动启动)则复用
-  // 开发时用仓库里的 server;打包后 server 在 resources 里(见 package.json extraResources)
-  const serverEntry = app.isPackaged
-    ? path.join(process.resourcesPath, 'server', 'src', 'server.js')
-    : path.join(__dirname, '..', 'server', 'src', 'server.js');
-  serverProc = spawn(process.execPath, [serverEntry], {
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-      OFFICELINE_DATA: path.join(app.getPath('userData'), 'data'),
-    },
-    stdio: 'ignore',
-  });
-  for (let i = 0; i < 40; i++) {
-    if (await ping()) return;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error('内置服务启动失败');
-}
-
-async function createWindow() {
-  await ensureServer();
+function createWindow() {
   const win = new BrowserWindow({
     width: 1360, height: 860,
     title: 'Officeline',
-    webPreferences: { contextIsolation: true },
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
+    },
   });
-  // 编辑器在应用内新窗口打开;外部链接交给系统浏览器
+  const base = new URL(CLOUD_URL);
+  // 站内链接在应用内新窗口打开;站外链接交给系统浏览器
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(HOME)) {
+    if (new URL(url).origin === base.origin) {
       return { action: 'allow', overrideBrowserWindowOptions: { width: 1360, height: 860, title: 'Officeline' } };
     }
     shell.openExternal(url);
     return { action: 'deny' };
   });
-  win.loadURL(HOME);
+  win.loadURL(CLOUD_URL);
 }
+
+// 渲染进程发起内购:调 StoreKit 购买 → 返回回执给页面,页面再 POST 给 /api/billing/apple 校验
+ipcMain.handle('officeline:purchase', async (_e, productId) => storekit.purchase(productId));
+ipcMain.handle('officeline:restore', async () => storekit.restore());
+ipcMain.handle('officeline:receipt', async () => storekit.getReceipt());
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-app.on('quit', () => { if (serverProc) serverProc.kill(); });

@@ -2,11 +2,12 @@
   "name": "officeline-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Officeline 桌面客户端(Windows/macOS)",
+  "description": "Officeline 桌面客户端(Mac App Store:云服务原生外壳 + 苹果内购)",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --mac dmg"
+    "dist:mas": "electron-builder --mac mas",
+    "dist:dmg": "electron-builder --mac dmg"
   },
   "devDependencies": {
     "electron": "^43.0.0",
@@ -20,30 +21,31 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "storekit.js",
+      "native/**",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../server",
-        "to": "server",
-        "filter": [
-          "**/*",
-          "!data/**",
-          "!*.log"
-        ]
-      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "identity": null,
       "target": [
         {
-          "target": "dmg",
+          "target": "mas",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ]
+    },
+    "mas": {
+      "category": "public.app-category.productivity",
+      "type": "distribution",
+      "hardenedRuntime": false,
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "entitlementsLoginHelper": "build/entitlements.mas.loginhelper.plist",
+      "provisioningProfile": "build/embedded.provisionprofile"
     }
   }
 }

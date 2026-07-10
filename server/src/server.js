@@ -23,6 +23,14 @@ const DS_JWT = process.env.OFFICELINE_DS_JWT || '';
 const AI_BASE = process.env.OFFICELINE_AI_BASE || 'https://api.deepseek.com';
 const AI_MODEL = process.env.OFFICELINE_AI_MODEL || 'deepseek-chat';
 const AI_KEY = process.env.OFFICELINE_AI_KEY || '';
+// Apple 内购(Mac App Store 变现通道):App Store Connect「App 专用共享密钥」
+const IAP_SHARED_SECRET = process.env.OFFICELINE_IAP_SHARED_SECRET || '';
+const IAP_BUNDLE_ID = process.env.OFFICELINE_IAP_BUNDLE_ID || 'com.officeline.app';
+// 专业版订阅的产品 ID(与 App Store Connect 里创建的自动续订订阅一致)
+const IAP_PRODUCTS = (process.env.OFFICELINE_IAP_PRODUCTS || 'com.officeline.pro.monthly,com.officeline.pro.yearly')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+// 仅本地/自部署演示可开:允许无支付直接升级 pro(公网务必保持关闭,否则任何人可白嫖)
+const ALLOW_DEMO_UPGRADE = process.env.OFFICELINE_ALLOW_DEMO_UPGRADE === '1';
 
 const ROOT = path.join(__dirname, '..');
 // 打包版由桌面壳传入用户数据目录,避免写进 .app 包(更新即丢)
@@ -74,6 +82,10 @@ db.exec(`
 `);
 
 try { db.exec('ALTER TABLE files ADD COLUMN share_token TEXT'); } catch { /* 列已存在 */ }
+// Apple 订阅状态(懒惰降级用):到期毫秒、原始交易号(防重绑)、产品 ID
+try { db.exec('ALTER TABLE users ADD COLUMN iap_expires_ms INTEGER'); } catch { /* 列已存在 */ }
+try { db.exec('ALTER TABLE users ADD COLUMN iap_original_txn TEXT'); } catch { /* 列已存在 */ }
+try { db.exec('ALTER TABLE users ADD COLUMN iap_product TEXT'); } catch { /* 列已存在 */ }
 
 const PLANS = {
   free: { name: '免费版', quota: 5 * 1024 ** 3, aiQuota: 20 },
@@ -164,6 +176,29 @@ function bumpAi(uid, period = curMonth()) {
 function usedBytes(uid) {
   const r = db.prepare(`SELECT COALESCE(SUM(v.size),0) AS s FROM versions v JOIN files f ON f.id=v.file_id WHERE f.owner_id=?`).get(uid);
   return Number(r.s);
+}
+
+// 有效套餐:Apple 订阅到期后懒惰回落免费;手动授予的 pro(无到期)保持不变
+function planOf(uid) {
+  const r = db.prepare('SELECT plan, iap_expires_ms FROM users WHERE id=?').get(uid);
+  if (!r) return 'free';
+  if (r.plan === 'pro' && r.iap_expires_ms && r.iap_expires_ms < now()) return 'free';
+  return PLANS[r.plan] ? r.plan : 'free';
+}
+
+// 向 App Store 校验回执:先打生产,遇 21007(沙盒回执)自动转沙盒。零依赖,用 verifyReceipt。
+async function appleVerifyReceipt(receiptB64) {
+  const body = JSON.stringify({
+    'receipt-data': receiptB64,
+    password: IAP_SHARED_SECRET,
+    'exclude-old-transactions': true,
+  });
+  const post = (host) => fetch(`https://${host}/verifyReceipt`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body,
+  }).then((r) => r.json());
+  let data = await post('buy.itunes.apple.com');
+  if (data && data.status === 21007) data = await post('sandbox.itunes.apple.com');
+  return data;
 }
 
 const EXT_TYPE = { docx: 'word', xlsx: 'cell', pptx: 'slide' };
@@ -343,20 +378,53 @@ route('POST', /^\/api\/auth\/(register|login)$/, async (req, res, m) => {
 
 route('GET', /^\/api\/me$/, (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
-  const row = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid);
-  const plan = PLANS[row.plan] ? row.plan : 'free';
+  const plan = planOf(u.uid);
+  const row = db.prepare('SELECT iap_expires_ms FROM users WHERE id=?').get(u.uid);
   json(res, 200, {
     email: u.email, plan, planName: PLANS[plan].name,
     used: usedBytes(u.uid), quota: PLANS[plan].quota,
     aiUsed: aiUsed(u.uid), aiQuota: PLANS[plan].aiQuota,
+    expiresMs: row && row.iap_expires_ms ? row.iap_expires_ms : null,
   });
 });
 
-// 订阅升级(支付接入前的占位:真实上线接 Paddle/LemonSqueezy/微信支付)
+// Apple 内购校验:客户端 StoreKit 购买后把回执发来,校验通过则按订阅到期写 pro
+route('POST', /^\/api\/billing\/apple$/, async (req, res) => {
+  const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  if (!IAP_SHARED_SECRET) return json(res, 500, { error: '服务端未配置 App Store 共享密钥' });
+  let receipt;
+  try { receipt = JSON.parse(await readBody(req, 4 * 1024 * 1024)).receipt; }
+  catch { return json(res, 400, { error: '请求体不合法' }); }
+  if (!receipt) return json(res, 400, { error: '缺少 receipt' });
+  let data;
+  try { data = await appleVerifyReceipt(receipt); }
+  catch { return json(res, 502, { error: '无法连接 App Store 验证服务' }); }
+  if (!data || data.status !== 0) return json(res, 400, { error: `App Store 校验失败(status ${data && data.status})` });
+  if (data.receipt && data.receipt.bundle_id && data.receipt.bundle_id !== IAP_BUNDLE_ID)
+    return json(res, 400, { error: '回执 bundle 不匹配' });
+  // 取回执里属于我们产品、到期最晚的一笔订阅
+  let best = null;
+  for (const t of (data.latest_receipt_info || [])) {
+    if (!IAP_PRODUCTS.includes(t.product_id)) continue;
+    const exp = Number(t.expires_date_ms || 0);
+    if (!best || exp > best.exp) best = { exp, product: t.product_id, txn: t.original_transaction_id };
+  }
+  if (!best) return json(res, 400, { error: '回执中没有匹配的订阅' });
+  // 防一张回执绑多账号:该 original_transaction_id 若已属于别的账号则拒绝
+  const owner = db.prepare('SELECT id FROM users WHERE iap_original_txn=?').get(best.txn);
+  if (owner && owner.id !== u.uid) return json(res, 409, { error: '该订阅已绑定到其他账号' });
+  const active = best.exp > now();
+  db.prepare('UPDATE users SET plan=?, iap_expires_ms=?, iap_original_txn=?, iap_product=? WHERE id=?')
+    .run(active ? 'pro' : 'free', best.exp, best.txn, best.product, u.uid);
+  json(res, 200, { ok: true, plan: active ? 'pro' : 'free', expiresMs: best.exp });
+});
+
+// 演示升级(仅自部署/本地开发,需显式 OFFICELINE_ALLOW_DEMO_UPGRADE=1;公网禁用防白嫖)
 route('POST', /^\/api\/billing\/upgrade$/, (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
+  if (!ALLOW_DEMO_UPGRADE) return json(res, 403, { error: '本实例未开启演示升级;付费请通过 Mac App Store 内购' });
   db.prepare("UPDATE users SET plan='pro' WHERE id=?").run(u.uid);
-  json(res, 200, { ok: true, note: '演示:已直接升级为专业版。上线前在此处接入支付回调。' });
+  json(res, 200, { ok: true, note: '演示:已直接升级为专业版。' });
 });
 
 route('GET', /^\/api\/files$/, (req, res) => {
@@ -384,7 +452,7 @@ route('POST', /^\/api\/files$/, async (req, res) => {
   const name = decodeURIComponent(req.headers['x-file-name'] || '').replace(/[\/\\]/g, '');
   if (!/\.(docx|xlsx|pptx)$/i.test(name)) return json(res, 400, { error: '仅支持 docx/xlsx/pptx' });
   const buf = await readBody(req);
-  const plan = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid).plan;
+  const plan = planOf(u.uid);
   if (usedBytes(u.uid) + buf.length > (PLANS[plan] || PLANS.free).quota) {
     return json(res, 402, { error: '云空间已满,请升级订阅', code: 'QUOTA_EXCEEDED' });
   }
@@ -540,7 +608,7 @@ route('POST', /^\/api\/ai$/, async (req, res) => {
   const u = auth(req); if (!u) return json(res, 401, { error: '未登录' });
   const { action, text } = JSON.parse(await readBody(req, 1e6));
   if (!text || !text.trim()) return json(res, 400, { error: '内容为空' });
-  const plan = db.prepare('SELECT plan FROM users WHERE id=?').get(u.uid).plan;
+  const plan = planOf(u.uid);
   const quota = (PLANS[plan] || PLANS.free).aiQuota;
   // 月额度用尽:免费用户每周可再体验几次(附升级提示),专业版直接提示
   let sample = false;
